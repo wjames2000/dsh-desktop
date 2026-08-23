@@ -84,8 +84,36 @@ function encodeSolidPng(width, height, [r, g, b]) {
   ]);
 }
 
+// ---------- ICO 容器（内嵌 PNG） ----------
+/**
+ * 把 PNG 包装成 ICO 文件。ICO 格式允许直接内嵌 PNG 数据：
+ * ICONDIR（6 字节）+ ICONDIRENTRY（16 字节）+ PNG 字节。
+ * 32x32 时宽高字节直接写 32（0 表示 256）。
+ * @param {Buffer} pngBuf
+ * @returns {Buffer}
+ */
+function encodeIcoFromPng(pngBuf) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // type = 1 (icon)
+  header.writeUInt16LE(1, 4); // count = 1
+
+  const entry = Buffer.alloc(16);
+  entry[0] = 32; // width
+  entry[1] = 32; // height
+  entry[2] = 0; // color count (0 = 不指定)
+  entry[3] = 0; // reserved
+  entry.writeUInt16LE(1, 4); // planes
+  entry.writeUInt16LE(32, 6); // bit count (32bpp，对应 RGBA PNG)
+  entry.writeUInt32LE(pngBuf.length, 8); // bytes in resource
+  entry.writeUInt32LE(6 + 16, 12); // image offset
+
+  return Buffer.concat([header, entry, pngBuf]);
+}
+
 // ---------- 主流程 ----------
-const ICONS_DIR = path.join(__dirname, '..', 'src-tauri', 'icons');
+const PROJECT_ROOT = path.join(__dirname, '..');
+const ICONS_DIR = path.join(PROJECT_ROOT, 'src-tauri', 'icons');
 // 深蓝色占位
 const COLOR = [13, 94, 217];
 
@@ -100,5 +128,12 @@ fs.mkdirSync(ICONS_DIR, { recursive: true });
 for (const [name, w, h] of sizes) {
   const file = path.join(ICONS_DIR, name);
   fs.writeFileSync(file, encodeSolidPng(w, h, COLOR));
-  console.log(`generated ${path.relative(process.cwd(), file)} (${w}x${h})`);
+  // 基于脚本自身路径计算相对路径，避免依赖调用时的 cwd
+  console.log(`generated ${path.relative(PROJECT_ROOT, file)} (${w}x${h})`);
 }
+
+// Windows ICO：从 32x32.png 包装生成（tauri.conf.json 的 bundle.icon 引用它）
+const icoFile = path.join(ICONS_DIR, 'icon.ico');
+const png32 = fs.readFileSync(path.join(ICONS_DIR, '32x32.png'));
+fs.writeFileSync(icoFile, encodeIcoFromPng(png32));
+console.log(`generated ${path.relative(PROJECT_ROOT, icoFile)} (ICO, 内嵌 32x32 PNG)`);
