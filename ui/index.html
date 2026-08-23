@@ -1,2 +1,52 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><title>DSH 桌面版</title></head><body></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>设置 - DSH 桌面版</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>DSH 桌面版设置</h1>
+
+  <section>
+    <h2>工作目录</h2>
+    <p id="workspace-value" class="value">-</p>
+    <button id="choose-workspace">更改</button>
+    <p class="hint">首次启动或更改后，下次启动生效</p>
+  </section>
+
+  <section>
+    <h2>数据目录 (DSH_HOME)</h2>
+    <p id="datadir-value" class="value">默认 (~/.dsh)</p>
+    <button id="choose-datadir">更改</button>
+    <button id="reset-datadir" class="secondary">恢复默认</button>
+    <p class="hint">更改后下次启动生效</p>
+  </section>
+
+  <section>
+    <h2>服务端口</h2>
+    <input type="number" id="port-input" min="1024" max="65535" value="3080">
+    <p class="hint">0 = 自动分配；被占用时自动递增</p>
+  </section>
+
+  <section>
+    <h2>开机自启</h2>
+    <label><input type="checkbox" id="autostart-check"> 登录系统后自动启动 DSH 服务</label>
+  </section>
+
+  <section>
+    <h2>关闭行为</h2>
+    <label><input type="checkbox" id="tray-check"> 关闭主窗口时最小化到托盘</label>
+  </section>
+
+  <section>
+    <h2>服务</h2>
+    <button id="restart-service">重启服务</button>
+    <p id="service-status" class="hint"></p>
+  </section>
+
+  <p id="save-status" class="save-status"></p>
+  <script src="app.js"></script>
+</body>
+</html>
