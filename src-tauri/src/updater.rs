@@ -1,7 +1,8 @@
 use tauri::{AppHandle, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
-/// 启动时静默检查（失败静默）
+/// 启动时后台检查（不阻塞主线程/UI；失败只落日志不打扰用户）。
+/// 未配置真实更新源时（endpoints 为空）check 立即返回 EmptyEndpoints 错误，零网络请求。
 pub fn check_on_startup(app: &AppHandle) {
     let state = app.state::<crate::AppState>();
     let cfg = state.config.lock().unwrap().clone();
@@ -9,9 +10,11 @@ pub fn check_on_startup(app: &AppHandle) {
         return;
     }
     let app = app.clone();
-    // 在 Tauri 异步运行时后台执行，不阻塞主线程/UI；失败静默（更新是锦上添花）
+    // 在 Tauri 异步运行时后台执行；失败记日志便于排障（更新是锦上添花，不打扰用户）
     tauri::async_runtime::spawn(async move {
-        let _ = check(&app).await;
+        if let Err(e) = check(&app).await {
+            eprintln!("[dsh-desktop] 启动时检查更新失败: {e}");
+        }
     });
 }
 

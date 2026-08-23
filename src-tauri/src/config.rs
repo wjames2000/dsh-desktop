@@ -30,7 +30,9 @@ impl Default for AppConfig {
             autostart: false,
             minimize_to_tray: true,
             update_channel: "stable".to_string(),
-            check_updates_on_start: true,
+            // 默认关闭：更新源未配置（tauri.conf.json endpoints 为空）时开启只会产生无效请求；
+            // 发布真实更新源时改回 true。
+            check_updates_on_start: false,
         }
     }
 }
@@ -85,7 +87,8 @@ mod tests {
         let c = AppConfig::default();
         assert_eq!(c.port, 3080);
         assert!(c.minimize_to_tray);
-        assert!(c.check_updates_on_start);
+        // 更新源未配置（占位 endpoints 为空）时默认关闭，避免每次启动发无效请求
+        assert!(!c.check_updates_on_start);
     }
 
     #[test]

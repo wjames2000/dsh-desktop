@@ -46,9 +46,7 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": [
-        "https://updates.example.com/dsh-desktop/latest.json"
-      ],
+      "endpoints": [],
       "pubkey": "REPLACE_WITH_GENERATED_PUBKEY"
     }
   }

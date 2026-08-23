@@ -70,12 +70,17 @@ document.getElementById('check-update-check').addEventListener('change', (e) => 
 
 document.getElementById('check-update-now').addEventListener('click', async () => {
   const status = document.getElementById('update-status');
+  const btn = document.getElementById('check-update-now');
+  // 检查期间禁用按钮，防止并发触发多次下载安装
+  btn.disabled = true;
   status.textContent = '正在检查…';
   try {
     const result = await invoke('check_for_updates');
     status.textContent = result || '已是最新版本';
   } catch (e) {
     status.textContent = '检查失败: ' + e;
+  } finally {
+    btn.disabled = false;
   }
 });
 
