@@ -180,6 +180,9 @@ impl SidecarManager {
     /// 每轮轮询同时检测子进程是否提前退出（如端口冲突导致 dsh 立即退出），
     /// 避免白等超时，也避免连上抢占端口的其他 HTTP 服务。
     pub fn wait_ready(&mut self, port: u16, timeout: Duration) -> Result<(), String> {
+        if self.child.is_none() {
+            return Err("DSH 服务未启动，无法等待就绪".to_string());
+        }
         let url = format!("http://127.0.0.1:{port}");
         let deadline = Instant::now() + timeout;
         let client = reqwest::blocking::Client::builder()
@@ -190,8 +193,12 @@ impl SidecarManager {
             // 检测子进程是否提前退出（如端口冲突）
             if let Some(child) = self.child.as_mut() {
                 if let Ok(Some(status)) = child.try_wait() {
+                    let code = status
+                        .code()
+                        .map(|c| c.to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
                     return Err(format!(
-                        "DSH 服务进程提前退出（exit code: {status}），可能端口 {port} 被占用。请重试或更换端口。"
+                        "DSH 服务进程提前退出（exit code: {code}），可能端口 {port} 被占用。请重试或更换端口。"
                     ));
                 }
             }
