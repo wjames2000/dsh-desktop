@@ -6,4 +6,5 @@ h2 { font-size: 15px; margin-top: 24px; }
 button { margin: 4px 4px 4px 0; padding: 6px 14px; border-radius: 6px; border: 1px solid #d0d7de; background: #f6f8fa; cursor: pointer; }
 button.primary { background: #0969da; color: #fff; border-color: #0969da; }
 button.secondary { background: transparent; }
+button.danger { background: #cf222e; color: #fff; border-color: #cf222e; }
 .save-status { color: #1a7f37; font-size: 13px; }

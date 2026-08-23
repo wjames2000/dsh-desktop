@@ -5,7 +5,13 @@ const { invoke } = window.__TAURI__.core;
 let currentConfig = null;
 
 async function refresh() {
-  currentConfig = await invoke('get_config');
+  try {
+    currentConfig = await invoke('get_config');
+  } catch (e) {
+    document.getElementById('save-status').textContent = '读取配置失败: ' + e;
+    currentConfig = null;
+  }
+  if (!currentConfig) return;
   document.getElementById('workspace-value').textContent =
     currentConfig.workspace_dir || '未设置（首次启动时选择）';
   document.getElementById('datadir-value').textContent =
@@ -16,6 +22,10 @@ async function refresh() {
 }
 
 async function save(partial) {
+  if (!currentConfig) {
+    document.getElementById('save-status').textContent = '配置未就绪，请稍后重试';
+    return;
+  }
   const next = { ...currentConfig, ...partial };
   try {
     await invoke('set_config', { cfg: next });
@@ -61,6 +71,14 @@ document.getElementById('restart-service').addEventListener('click', async () =>
     status.textContent = `服务已重启（端口 ${port}）`;
   } catch (e) {
     status.textContent = '重启失败: ' + e;
+  }
+});
+
+document.getElementById('quit-app').addEventListener('click', async () => {
+  try {
+    await invoke('quit_app');
+  } catch (e) {
+    document.getElementById('save-status').textContent = '退出失败: ' + e;
   }
 });
 

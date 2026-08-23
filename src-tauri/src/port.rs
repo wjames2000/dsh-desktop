@@ -37,7 +37,8 @@ mod tests {
 
     #[test]
     fn find_free_port_returns_bindable() {
-        let p = find_free_port(3080);
+        // 从 20000 起探测：与 fallback 测试的 30000-30100 区间隔离，避免并行运行竞争
+        let p = find_free_port(20000);
         // 上限 65535 由 u16 类型保证
         assert!(p >= 1024);
         // 端口应该真的是空闲的（能绑定）
@@ -61,15 +62,16 @@ mod tests {
 
     #[test]
     fn fallback_to_os_when_all_occupied() {
-        // 占用 [3080, 3180] 共 101 个端口，覆盖"最多尝试 101 个"边界与兜底分支
+        // 占用 [30000, 30100] 共 101 个端口，独立区间避免与其他测试竞争；
+        // 覆盖"最多尝试 101 个"边界与兜底分支
         let mut listeners = Vec::new();
-        for port in 3080..=3180 {
+        for port in 30000..=30100 {
             match TcpListener::bind(("127.0.0.1", port)) {
                 Ok(l) => listeners.push(l),
                 Err(_) => {} // 该端口已被占用（外部进程），也算"不可用"
             }
         }
-        let p = find_free_port(3080);
+        let p = find_free_port(30000);
         // 上限 65535 由 u16 类型保证
         assert!(p >= 1024);
         // 结果不应等于任何被我们成功占用的端口（find_free_port 会跳过它们）
