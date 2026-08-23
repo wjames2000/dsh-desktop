@@ -1,4 +1,9 @@
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::{self, Receiver};
+use std::thread;
+use std::time::{Duration, Instant};
 
 /// 从可执行文件路径解析 sidecar 资源根目录。
 /// 布局规则：
@@ -95,6 +100,144 @@ pub fn profile_dir() -> PathBuf {
     resource_dir().join("profile")
 }
 
+pub struct SidecarManager {
+    child: Option<Child>,
+    log_rx: Receiver<String>,
+}
+
+impl SidecarManager {
+    pub fn new() -> Self {
+        // 日志管道占位：接收端保留给任务 8（设置页日志展示）接线，本任务仅编译占位
+        Self { child: None, log_rx: mpsc::channel().1 }
+    }
+
+    /// 启动 dsh web sidecar。
+    /// data_dir 为 None 时不注入 DSH_HOME（用默认 ~/.dsh）。
+    pub fn start(&mut self, workspace: &str, data_dir: Option<&str>, port: u16) -> Result<(), String> {
+        let node = node_binary();
+        let dsh = dsh_dir().join("lib").join("bin.js");
+        if !node.exists() {
+            return Err(format!("node 运行时缺失: {}", node.display()));
+        }
+        if !dsh.exists() {
+            return Err(format!("dsh 包缺失: {}", dsh.display()));
+        }
+
+        let mut cmd = Command::new(&node);
+        cmd.arg(&dsh)
+            .arg("--profile")
+            .arg("web")
+            .arg("--port")
+            .arg(port.to_string())
+            .arg("--no-open")
+            .current_dir(workspace)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        if let Some(d) = data_dir {
+            cmd.env("DSH_HOME", d);
+        }
+
+        let mut child = cmd.spawn().map_err(|e| format!("启动 dsh 失败: {e}"))?;
+
+        // 占位日志管道：持续排空 stdout，防止子进程写满管道阻塞。
+        // 发送端暂未与 self.log_rx 连通，任务 8 接设置页日志展示。
+        if let Some(mut out) = child.stdout.take() {
+            let tx = mpsc::channel().0;
+            thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                loop {
+                    match out.read(&mut buf) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => { let _ = tx.send(String::from_utf8_lossy(&buf[..n]).to_string()); }
+                    }
+                }
+            });
+        }
+
+        self.child = Some(child);
+        Ok(())
+    }
+
+    /// 轮询 http://127.0.0.1:{port} 直到 200，超时 30s
+    pub fn wait_ready(&self, port: u16, timeout: Duration) -> Result<(), String> {
+        let url = format!("http://127.0.0.1:{port}");
+        let deadline = Instant::now() + timeout;
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .map_err(|e| e.to_string())?;
+        while Instant::now() < deadline {
+            if let Ok(resp) = client.get(&url).send() {
+                if resp.status().is_success() {
+                    return Ok(());
+                }
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+        Err(format!("等待 DSH 服务就绪超时（{timeout:?}）：{url}"))
+    }
+
+    /// kill 整个进程树并等待退出（超时 5s 强杀）。
+    /// macOS/Linux 用 pgrep 递归；Windows 用 taskkill /T /F。
+    pub fn stop(&mut self) {
+        if let Some(child) = self.child.take() {
+            let pid = child.id();
+            let _ = kill_tree(pid);
+            let mut child = child;
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                match child.try_wait() {
+                    Ok(Some(_)) => break,
+                    Ok(None) => {
+                        if Instant::now() > deadline {
+                            let _ = child.kill();
+                            break;
+                        }
+                        thread::sleep(Duration::from_millis(100));
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
+    }
+}
+
+/// 平台相关的进程树 kill
+fn kill_tree(pid: u32) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .status()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        // 递归 kill 子进程再 kill 自身
+        let out = Command::new("pgrep")
+            .args(["-P", &pid.to_string()])
+            .output();
+        if let Ok(out) = out {
+            let s = String::from_utf8_lossy(&out.stdout);
+            for line in s.lines() {
+                if let Ok(child_pid) = line.trim().parse::<u32>() {
+                    let _ = kill_tree(child_pid);
+                }
+            }
+        }
+        let _ = Command::new("kill").arg(pid.to_string()).status();
+        Ok(())
+    }
+}
+
+impl Default for SidecarManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -154,5 +297,11 @@ mod tests {
         assert!(node_binary().to_string_lossy().ends_with("node") || node_binary().to_string_lossy().ends_with("node.exe"));
         assert!(dsh_dir().to_string_lossy().contains("dsh"));
         assert!(profile_dir().to_string_lossy().contains("profile"));
+    }
+
+    #[test]
+    fn kill_nonexistent_pid_is_ok() {
+        // 不存在的 pid：kill_tree 应返回 Ok 或不 panic
+        let _ = kill_tree(999_999);
     }
 }
