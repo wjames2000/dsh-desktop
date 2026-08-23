@@ -114,6 +114,9 @@ impl SidecarManager {
     /// 启动 dsh web sidecar。
     /// data_dir 为 None 时不注入 DSH_HOME（用默认 ~/.dsh）。
     pub fn start(&mut self, workspace: &str, data_dir: Option<&str>, port: u16) -> Result<(), String> {
+        if self.child.is_some() {
+            return Err("DSH 服务已在运行中，请先停止再启动".to_string());
+        }
         let node = node_binary();
         let dsh = dsh_dir().join("lib").join("bin.js");
         if !node.exists() {
@@ -154,13 +157,29 @@ impl SidecarManager {
                 }
             });
         }
+        // 与 stdout 相同模式：持续排空 stderr，防止 Node 警告/错误日志
+        // 写满管道缓冲（macOS 16KB / Linux 64KB）导致子进程 write(2) 永久阻塞。
+        if let Some(mut err) = child.stderr.take() {
+            let tx = mpsc::channel().0;
+            thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                loop {
+                    match err.read(&mut buf) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => { let _ = tx.send(String::from_utf8_lossy(&buf[..n]).to_string()); }
+                    }
+                }
+            });
+        }
 
         self.child = Some(child);
         Ok(())
     }
 
-    /// 轮询 http://127.0.0.1:{port} 直到 200，超时 30s
-    pub fn wait_ready(&self, port: u16, timeout: Duration) -> Result<(), String> {
+    /// 轮询 http://127.0.0.1:{port} 直到 200，超时 30s。
+    /// 每轮轮询同时检测子进程是否提前退出（如端口冲突导致 dsh 立即退出），
+    /// 避免白等超时，也避免连上抢占端口的其他 HTTP 服务。
+    pub fn wait_ready(&mut self, port: u16, timeout: Duration) -> Result<(), String> {
         let url = format!("http://127.0.0.1:{port}");
         let deadline = Instant::now() + timeout;
         let client = reqwest::blocking::Client::builder()
@@ -168,6 +187,14 @@ impl SidecarManager {
             .build()
             .map_err(|e| e.to_string())?;
         while Instant::now() < deadline {
+            // 检测子进程是否提前退出（如端口冲突）
+            if let Some(child) = self.child.as_mut() {
+                if let Ok(Some(status)) = child.try_wait() {
+                    return Err(format!(
+                        "DSH 服务进程提前退出（exit code: {status}），可能端口 {port} 被占用。请重试或更换端口。"
+                    ));
+                }
+            }
             if let Ok(resp) = client.get(&url).send() {
                 if resp.status().is_success() {
                     return Ok(());
@@ -192,6 +219,8 @@ impl SidecarManager {
                     Ok(None) => {
                         if Instant::now() > deadline {
                             let _ = child.kill();
+                            // 强杀后再回收一次，避免留下僵尸进程
+                            let _ = child.wait();
                             break;
                         }
                         thread::sleep(Duration::from_millis(100));
@@ -200,6 +229,14 @@ impl SidecarManager {
                 }
             }
         }
+    }
+}
+
+/// 应用退出时清理 sidecar：Child drop 不会 kill 子进程，
+/// 不实现 Drop 会让 dsh 变成孤儿进程继续运行。
+impl Drop for SidecarManager {
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 
