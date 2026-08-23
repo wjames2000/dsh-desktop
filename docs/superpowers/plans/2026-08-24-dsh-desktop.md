@@ -1391,6 +1391,8 @@ cargo tauri icon assets/icon-source.png
 
 预期：生成全套 icons（32x32.png、128x128.png、128x128@2x.png、icon.icns、icon.ico 等）。
 
+> **品牌图标替换**：当前 `assets/icon-source.png` 为占位色（深蓝 `#0d5ed9`，由 `scripts/gen-placeholder-icons.js` 生成）。正式品牌图标（用户公司 logo）就绪后，替换 `assets/icon-source.png` 并重新运行 `cargo tauri icon assets/icon-source.png`，即可重新生成全套图标。
+
 - [ ] **步骤 10.2：Commit**
 
 ```bash
