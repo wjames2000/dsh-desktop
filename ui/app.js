@@ -19,6 +19,7 @@ async function refresh() {
   document.getElementById('port-input').value = currentConfig.port;
   document.getElementById('autostart-check').checked = currentConfig.autostart;
   document.getElementById('tray-check').checked = currentConfig.minimize_to_tray;
+  document.getElementById('check-update-check').checked = currentConfig.check_updates_on_start;
 }
 
 async function save(partial) {
@@ -61,6 +62,21 @@ document.getElementById('autostart-check').addEventListener('change', (e) => {
 
 document.getElementById('tray-check').addEventListener('change', (e) => {
   save({ minimize_to_tray: e.target.checked });
+});
+
+document.getElementById('check-update-check').addEventListener('change', (e) => {
+  save({ check_updates_on_start: e.target.checked });
+});
+
+document.getElementById('check-update-now').addEventListener('click', async () => {
+  const status = document.getElementById('update-status');
+  status.textContent = '正在检查…';
+  try {
+    const result = await invoke('check_for_updates');
+    status.textContent = result || '已是最新版本';
+  } catch (e) {
+    status.textContent = '检查失败: ' + e;
+  }
 });
 
 document.getElementById('restart-service').addEventListener('click', async () => {

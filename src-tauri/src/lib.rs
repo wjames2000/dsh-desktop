@@ -29,6 +29,7 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
             config: Mutex::new(config::AppConfig::load()),
             sidecar: Mutex::new(sidecar::SidecarManager::new()),
@@ -39,6 +40,7 @@ pub fn run() {
             commands::choose_workspace,
             commands::restart_service,
             commands::quit_app,
+            commands::check_for_updates,
         ])
         .setup(|app| {
             let state = app.state::<AppState>();
@@ -101,6 +103,9 @@ pub fn run() {
                 use tauri_plugin_autostart::ManagerExt;
                 let _ = app.autolaunch().enable();
             }
+
+            // 启动时后台检查更新
+            crate::updater::check_on_startup(app.handle());
 
             Ok(())
         })

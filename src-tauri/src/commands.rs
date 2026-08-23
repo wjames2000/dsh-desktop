@@ -49,3 +49,8 @@ pub async fn restart_service(app: AppHandle, state: State<'_, AppState>) -> Resu
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
+
+#[tauri::command]
+pub async fn check_for_updates(app: AppHandle) -> Result<String, String> {
+    crate::updater::check(&app).await
+}
