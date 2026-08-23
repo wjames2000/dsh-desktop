@@ -44,24 +44,16 @@ pub fn run() {
             let state = app.state::<AppState>();
             let cfg = state.config.lock().unwrap().clone();
 
-            // 启动 sidecar（若未配置工作目录，弹目录选择器）
+            // 启动 sidecar（若未配置工作目录，用家目录兜底启动）。
+            // 注意：setup 跑在主线程，不能在这里调用 dialog 的 blocking API——
+            // 主线程阻塞时事件循环不泵动，对话框永远不出现、recv 永不返回 → 应用永久挂起。
+            // 首次运行的目录选择交给设置页的 choose_workspace command（任务 8）。
             let workspace = match &cfg.workspace_dir {
                 Some(w) if !w.is_empty() => w.clone(),
-                _ => {
-                    // 首次启动：弹原生目录选择器
-                    use tauri_plugin_dialog::DialogExt;
-                    let picked = app.dialog().file().blocking_pick_folder();
-                    match picked {
-                        Some(p) => p.to_string(),
-                        None => {
-                            // 用户取消：用家目录兜底
-                            dirs::home_dir()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string()
-                        }
-                    }
-                }
+                _ => dirs::home_dir()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string(),
             };
             // 记住选择
             {
@@ -111,18 +103,23 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 关窗行为：最小化到托盘或退出
+            // 关窗行为：仅 main 窗口决定退出逻辑；settings 等其他窗口关闭直接放行，不影响服务。
+            // （settings 窗口始终在窗口表里，运行时"最后一个窗口关闭自动退出"不会触发，
+            // 因此 minimize_to_tray=false 时必须显式 exit，否则留下无窗口的僵尸进程。）
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
                 let state = app.state::<AppState>();
                 let cfg = state.config.lock().unwrap().clone();
-                if cfg.minimize_to_tray && window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
-                } else {
-                    // 直接退出：停 sidecar
-                    let mut sm = state.sidecar.lock().unwrap();
-                    sm.stop();
+                if window.label() == "main" {
+                    if cfg.minimize_to_tray {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    } else {
+                        // 直接退出：停 sidecar 后显式退出应用
+                        let mut sm = state.sidecar.lock().unwrap();
+                        sm.stop();
+                        app.exit(0);
+                    }
                 }
             }
         })

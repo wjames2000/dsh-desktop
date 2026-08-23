@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗口与设置窗口的默认能力：远程页面（http://127.0.0.1:*，即 dsh web sidecar）可调用 5 个自定义 command 及核心/对话框/进程/自启权限",
+  "windows": ["main", "settings"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*"]
+  },
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "dialog:default",
+    "dialog:allow-open",
+    "autostart:default",
+    "process:default",
+    "allow-get-config",
+    "allow-set-config",
+    "allow-choose-workspace",
+    "allow-restart-service",
+    "allow-quit-app"
+  ]
+}
