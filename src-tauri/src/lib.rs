@@ -91,8 +91,10 @@ pub fn run() {
                 }
             }
 
-            // 托盘
-            tray::setup_tray(app.handle().clone())?;
+            // 托盘：失败不阻止主应用运行（如 Linux 无 StatusNotifier 宿主时）
+            if let Err(e) = tray::setup_tray(app.handle().clone()) {
+                eprintln!("托盘初始化失败（不影响主应用）: {e}");
+            }
 
             // 开机自启：按配置同步
             if cfg.autostart {
