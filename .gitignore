@@ -1,3 +1,25 @@
 
 # Git worktrees
 .worktrees/
+
+# Rust
+target/
+src-tauri/gen/schemas/
+src-tauri/gen/android/
+src-tauri/gen/apple/
+
+# Node
+node_modules/
+bundle/node/
+bundle/dsh/
+bundle/profile/
+
+# Tauri
+src-tauri/target/
+
+# 构建产物
+*.dmg
+*.msi
+*.exe
+*.deb
+*.AppImage
