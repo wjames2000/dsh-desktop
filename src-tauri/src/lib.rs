@@ -110,23 +110,33 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 关窗行为：仅 main 窗口决定退出逻辑；settings 等其他窗口关闭直接放行，不影响服务。
-            // （settings 窗口始终在窗口表里，运行时"最后一个窗口关闭自动退出"不会触发，
-            // 因此 minimize_to_tray=false 时必须显式 exit，否则留下无窗口的僵尸进程。）
+            // 关窗行为：
+            // - main 窗口：minimize_to_tray=true 时关闭即隐藏（托盘常驻），否则显式退出
+            //   （settings 窗口常驻窗口表，运行时"最后一个窗口关闭自动退出"不会触发，
+            //   因此 minimize_to_tray=false 时必须显式 exit，否则留下无窗口的僵尸进程）。
+            // - settings 窗口：关闭即隐藏（不销毁），托盘 tray-settings 菜单可再次打开。
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
                 let state = app.state::<AppState>();
                 let cfg = state.config.lock().unwrap().clone();
-                if window.label() == "main" {
-                    if cfg.minimize_to_tray {
+                match window.label() {
+                    "main" => {
+                        if cfg.minimize_to_tray {
+                            api.prevent_close();
+                            let _ = window.hide();
+                        } else {
+                            // 直接退出：停 sidecar 后显式退出应用
+                            let mut sm = state.sidecar.lock().unwrap();
+                            sm.stop();
+                            app.exit(0);
+                        }
+                    }
+                    "settings" => {
+                        // 设置窗口：关闭即隐藏（不销毁），托盘可再次打开
                         api.prevent_close();
                         let _ = window.hide();
-                    } else {
-                        // 直接退出：停 sidecar 后显式退出应用
-                        let mut sm = state.sidecar.lock().unwrap();
-                        sm.stop();
-                        app.exit(0);
                     }
+                    _ => {}
                 }
             }
         })

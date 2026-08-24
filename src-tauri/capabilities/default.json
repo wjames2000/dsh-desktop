@@ -16,6 +16,7 @@
     "allow-set-config",
     "allow-choose-workspace",
     "allow-restart-service",
-    "allow-quit-app"
+    "allow-quit-app",
+    "allow-check-for-updates"
   ]
 }

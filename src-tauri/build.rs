@@ -11,6 +11,7 @@ fn main() {
                 "choose_workspace",
                 "restart_service",
                 "quit_app",
+                "check_for_updates",
             ]),
         ),
     )
