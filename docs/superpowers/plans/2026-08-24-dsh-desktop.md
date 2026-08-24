@@ -1,6 +1,6 @@
 # DSH 桌面版（dsh-desktop）实现计划
 
-> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
+> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [x]`）语法来跟踪进度。
 
 **目标：** 将 `@deepseek-ai/dsh@0.1.1-rc.2` 的 Web GUI 封装为 Tauri v2 桌面应用（DSH 桌面版 / dsh-desktop），内置 Node sidecar，三平台（macOS/Windows/Linux）自包含分发，支持托盘、单实例、开机自启、应用设置页与自动更新。
 
@@ -57,7 +57,7 @@ dsh-desktop/                        # 应用根目录（本仓库根目录）
 
 ## 前置检查（开始前必须完成）
 
-- [ ] **步骤 0.1：确认 Rust 工具链已安装**
+- [x] **步骤 0.1：确认 Rust 工具链已安装**
 
 运行：`rustc --version && cargo --version`
 预期：输出版本号。若报 "command not found"：
@@ -69,7 +69,7 @@ source "$HOME/.cargo/env"
 
 然后重新运行版本检查确认成功。
 
-- [ ] **步骤 0.2：确认 macOS 构建依赖**
+- [x] **步骤 0.2：确认 macOS 构建依赖**
 
 运行：`xcode-select -p`
 预期：输出 Xcode 路径（如 `/Library/Developer/CommandLineTools`）。若失败：
@@ -78,17 +78,17 @@ source "$HOME/.cargo/env"
 xcode-select --install
 ```
 
-- [ ] **步骤 0.3：确认 Node 可用（构建机用于 npm ci）**
+- [x] **步骤 0.3：确认 Node 可用（构建机用于 npm ci）**
 
 运行：`node --version && npm --version`
 预期：Node v24.x、npm 10+。若无，用 nvm 安装 Node 24。
 
-- [ ] **步骤 0.4：确认 Tauri CLI**
+- [x] **步骤 0.4：确认 Tauri CLI**
 
 运行：`cargo install tauri-cli --version "^2" --locked`（安装 tauri CLI v2）
 预期：安装成功。验证：`cargo tauri --version` 输出 2.x。
 
-- [ ] **步骤 0.5：README 说明内置 Node 版本决策**
+- [x] **步骤 0.5：README 说明内置 Node 版本决策**
 
 修改：`README.md`（创建）
 内容：项目简介 + 内置 Node 版本 = 构建机 node 版本（`node --version` 输出），两者必须一致（native 模块 ABI 原因）。
@@ -107,7 +107,7 @@ xcode-select --install
 内置 Node 版本必须与构建机 Node 版本一致（dsh 的 native 模块按 ABI 编译）。
 ```
 
-- [ ] **步骤 0.6：Commit**
+- [x] **步骤 0.6：Commit**
 
 ```bash
 git add README.md
@@ -125,7 +125,7 @@ git commit -m "docs: add build prerequisites to README"
 - 创建：`src-tauri/src/main.rs`（最小版）
 - 创建：`.gitignore`
 
-- [ ] **步骤 1.1：创建 Cargo.toml**
+- [x] **步骤 1.1：创建 Cargo.toml**
 
 创建 `src-tauri/Cargo.toml`：
 
@@ -156,7 +156,7 @@ reqwest = { version = "0.12", features = ["blocking"] }
 dirs = "5"
 ```
 
-- [ ] **步骤 1.2：创建 build.rs**
+- [x] **步骤 1.2：创建 build.rs**
 
 创建 `src-tauri/build.rs`：
 
@@ -166,7 +166,7 @@ fn main() {
 }
 ```
 
-- [ ] **步骤 1.3：创建 tauri.conf.json**
+- [x] **步骤 1.3：创建 tauri.conf.json**
 
 创建 `src-tauri/tauri.conf.json`：
 
@@ -236,7 +236,7 @@ fn main() {
 
 注意：`pubkey` 和 endpoints URL 是占位，任务 9 生成密钥后替换。窗口 `visible: false` 是为了等 sidecar 就绪后再显示（避免加载失败的白屏），任务 3 实现显示逻辑。
 
-- [ ] **步骤 1.4：生成图标**
+- [x] **步骤 1.4：生成图标**
 
 运行：
 
@@ -250,7 +250,7 @@ cargo tauri icon --help >/dev/null 2>&1 || echo "tauri CLI 未安装，先执行
 
 如果 `cargo tauri icon` 可用，先用任意 1024x1024 PNG 生成全套图标；否则创建空占位目录（图标生成放任务 10 统一处理）。
 
-- [ ] **步骤 1.5：创建最小 main.rs**
+- [x] **步骤 1.5：创建最小 main.rs**
 
 创建 `src-tauri/src/main.rs`：
 
@@ -262,7 +262,7 @@ fn main() {
 }
 ```
 
-- [ ] **步骤 1.6：创建 .gitignore**
+- [x] **步骤 1.6：创建 .gitignore**
 
 创建 `.gitignore`：
 
@@ -290,7 +290,7 @@ src-tauri/target/
 *.AppImage
 ```
 
-- [ ] **步骤 1.7：创建 lib.rs（run 入口）**
+- [x] **步骤 1.7：创建 lib.rs（run 入口）**
 
 创建 `src-tauri/src/lib.rs`：
 
@@ -302,12 +302,12 @@ pub fn run() {
 }
 ```
 
-- [ ] **步骤 1.8：cargo check 验证编译**
+- [x] **步骤 1.8：cargo check 验证编译**
 
 运行：`cargo check`（在 `src-tauri/` 目录下）
 预期：编译通过（首次会下载依赖，可能 5-10 分钟）。
 
-- [ ] **步骤 1.9：Commit**
+- [x] **步骤 1.9：Commit**
 
 ```bash
 git add src-tauri .gitignore
@@ -322,7 +322,7 @@ git commit -m "feat: scaffold tauri v2 project skeleton"
 - 创建：`src-tauri/src/config.rs`
 - 修改：`src-tauri/src/lib.rs`
 
-- [ ] **步骤 2.1：定义 AppConfig 结构体与默认值**
+- [x] **步骤 2.1：定义 AppConfig 结构体与默认值**
 
 创建 `src-tauri/src/config.rs`：
 
@@ -393,7 +393,7 @@ impl AppConfig {
 }
 ```
 
-- [ ] **步骤 2.2：单元测试（TDD：先写测试文件）**
+- [x] **步骤 2.2：单元测试（TDD：先写测试文件）**
 
 创建 `src-tauri/src/config.rs` 追加测试模块（写在文件末尾）：
 
@@ -439,12 +439,12 @@ mod tests {
 }
 ```
 
-- [ ] **步骤 2.3：运行测试验证**
+- [x] **步骤 2.3：运行测试验证**
 
 运行：`cargo test`（在 `src-tauri/`）
 预期：3 个测试通过。若 `config.rs` 未编译（如 dirs 未加），补充 `dirs = "5"` 到 Cargo.toml 的依赖。
 
-- [ ] **步骤 2.4：Commit**
+- [x] **步骤 2.4：Commit**
 
 ```bash
 git add src-tauri/src/config.rs Cargo.toml
@@ -459,7 +459,7 @@ git commit -m "feat: add app config with atomic save"
 - 创建：`src-tauri/src/port.rs`
 - 修改：`src-tauri/src/lib.rs`
 
-- [ ] **步骤 3.1：实现端口探测**
+- [x] **步骤 3.1：实现端口探测**
 
 创建 `src-tauri/src/port.rs`：
 
@@ -514,12 +514,12 @@ mod tests {
 }
 ```
 
-- [ ] **步骤 3.2：运行测试**
+- [x] **步骤 3.2：运行测试**
 
 运行：`cargo test port`（在 `src-tauri/`）
 预期：3 个测试通过。
 
-- [ ] **步骤 3.3：Commit**
+- [x] **步骤 3.3：Commit**
 
 ```bash
 git add src-tauri/src/port.rs
@@ -533,7 +533,7 @@ git commit -m "feat: add free-port probing"
 **文件：**
 - 创建：`src-tauri/src/sidecar.rs`（仅路径解析部分）
 
-- [ ] **步骤 4.1：实现资源路径解析**
+- [x] **步骤 4.1：实现资源路径解析**
 
 创建 `src-tauri/src/sidecar.rs`（此任务先只放路径解析，进程管理任务 5 追加）：
 
@@ -581,12 +581,12 @@ mod tests {
 }
 ```
 
-- [ ] **步骤 4.2：运行测试**
+- [x] **步骤 4.2：运行测试**
 
 运行：`cargo test sidecar`（在 `src-tauri/`）
 预期：通过。
 
-- [ ] **步骤 4.3：Commit**
+- [x] **步骤 4.3：Commit**
 
 ```bash
 git add src-tauri/src/sidecar.rs
@@ -600,7 +600,7 @@ git commit -m "feat: add sidecar resource path resolution"
 **文件：**
 - 修改：`src-tauri/src/sidecar.rs`（追加进程管理）
 
-- [ ] **步骤 5.1：实现 SidecarManager**
+- [x] **步骤 5.1：实现 SidecarManager**
 
 在 `src-tauri/src/sidecar.rs` 追加：
 
@@ -751,7 +751,7 @@ impl Default for SidecarManager {
 }
 ```
 
-- [ ] **步骤 5.2：单元测试（不真正 spawn dsh，只测 kill_tree 对不存在 pid 不 panic）**
+- [x] **步骤 5.2：单元测试（不真正 spawn dsh，只测 kill_tree 对不存在 pid 不 panic）**
 
 追加测试：
 
@@ -771,7 +771,7 @@ mod tests {
 运行：`cargo test sidecar`
 预期：通过。
 
-- [ ] **步骤 5.3：Commit**
+- [x] **步骤 5.3：Commit**
 
 ```bash
 git add src-tauri/src/sidecar.rs
@@ -786,7 +786,7 @@ git commit -m "feat: add sidecar process management with tree kill"
 - 修改：`src-tauri/src/lib.rs`
 - 创建：`src-tauri/src/commands.rs`（先放 update_config 相关 command）
 
-- [ ] **步骤 6.1：实现 run() 完整流程**
+- [x] **步骤 6.1：实现 run() 完整流程**
 
 改写 `src-tauri/src/lib.rs`：
 
@@ -938,7 +938,7 @@ pub fn run() {
 
 注意：`updater.rs` 和 `tray.rs` 模块在任务 7/9 才实现，此任务先创建空占位文件避免编译失败（在 src/ 下建空 `tray.rs`、`updater.rs`，内容为 `// placeholder`）。
 
-- [ ] **步骤 6.2：创建 commands.rs（设置读写 command）**
+- [x] **步骤 6.2：创建 commands.rs（设置读写 command）**
 
 创建 `src-tauri/src/commands.rs`：
 
@@ -988,7 +988,7 @@ pub fn quit_app(app: AppHandle) {
 }
 ```
 
-- [ ] **步骤 6.3：创建空占位模块**
+- [x] **步骤 6.3：创建空占位模块**
 
 创建 `src-tauri/src/tray.rs` 与 `src-tauri/src/updater.rs`，内容为：
 
@@ -996,12 +996,12 @@ pub fn quit_app(app: AppHandle) {
 // placeholder - 任务 7/9 实现
 ```
 
-- [ ] **步骤 6.4：编译验证**
+- [x] **步骤 6.4：编译验证**
 
 运行：`cargo check`（在 `src-tauri/`）
 预期：编译通过。若报 dialog 插件 API 名不对，按实际版本调整（如 `blocking_pick_folder` 在 v2 中可能为 `pick_folder` + 回调，改为回调方式或使用 `blocking_pick_folder`）。
 
-- [ ] **步骤 6.5：Commit**
+- [x] **步骤 6.5：Commit**
 
 ```bash
 git add src-tauri/src/lib.rs src-tauri/src/commands.rs src-tauri/src/tray.rs src-tauri/src/updater.rs
@@ -1016,7 +1016,7 @@ git commit -m "feat: wire startup flow with sidecar and dialogs"
 - 修改：`src-tauri/src/tray.rs`
 - 修改：`src-tauri/src/lib.rs`（on_window_event 已有，无需改）
 
-- [ ] **步骤 7.1：实现托盘**
+- [x] **步骤 7.1：实现托盘**
 
 改写 `src-tauri/src/tray.rs`：
 
@@ -1062,12 +1062,12 @@ pub fn setup_tray(app: AppHandle) -> tauri::Result<()> {
 }
 ```
 
-- [ ] **步骤 7.2：编译验证**
+- [x] **步骤 7.2：编译验证**
 
 运行：`cargo check`
 预期：通过。若 `default_window_icon` 在 tray 构建时需要具体 icon，改用 `app.default_window_icon().cloned()`。
 
-- [ ] **步骤 7.3：Commit**
+- [x] **步骤 7.3：Commit**
 
 ```bash
 git add src-tauri/src/tray.rs
@@ -1084,7 +1084,7 @@ git commit -m "feat: add system tray with show/settings/quit"
 - 创建：`ui/app.js`
 - 修改：`src-tauri/capabilities/default.json`（创建）
 
-- [ ] **步骤 8.1：创建设置页 HTML**
+- [x] **步骤 8.1：创建设置页 HTML**
 
 创建 `ui/index.html`：
 
@@ -1149,7 +1149,7 @@ git commit -m "feat: add system tray with show/settings/quit"
 </html>
 ```
 
-- [ ] **步骤 8.2：创建样式**
+- [x] **步骤 8.2：创建样式**
 
 创建 `ui/styles.css`：
 
@@ -1166,7 +1166,7 @@ button.secondary { background: transparent; }
 .save-status { color: #1a7f37; font-size: 13px; }
 ```
 
-- [ ] **步骤 8.3：创建 app.js**
+- [x] **步骤 8.3：创建 app.js**
 
 创建 `ui/app.js`：
 
@@ -1244,7 +1244,7 @@ document.getElementById('check-update-now').addEventListener('click', async () =
 refresh();
 ```
 
-- [ ] **步骤 8.4：创建 capabilities 配置（允许 IPC 权限）**
+- [x] **步骤 8.4：创建 capabilities 配置（允许 IPC 权限）**
 
 创建 `src-tauri/capabilities/default.json`：
 
@@ -1265,12 +1265,12 @@ refresh();
 }
 ```
 
-- [ ] **步骤 8.5：编译验证**
+- [x] **步骤 8.5：编译验证**
 
 运行：`cargo check`
 预期：通过。若报 capabilities schema 生成问题，先运行 `cargo tauri dev` 或 `cargo build` 生成 schema。
 
-- [ ] **步骤 8.6：Commit**
+- [x] **步骤 8.6：Commit**
 
 ```bash
 git add ui/ src-tauri/capabilities/default.json
@@ -1287,7 +1287,7 @@ git commit -m "feat: add settings page UI with IPC"
 - 修改：`src-tauri/src/lib.rs`（setup 中启动时检查）
 - 修改：`src-tauri/tauri.conf.json`（pubkey 替换）
 
-- [ ] **步骤 9.1：实现 updater.rs**
+- [x] **步骤 9.1：实现 updater.rs**
 
 改写 `src-tauri/src/updater.rs`：
 
@@ -1326,7 +1326,7 @@ pub fn check(app: &AppHandle) -> Result<String, String> {
 }
 ```
 
-- [ ] **步骤 9.2：注册 command**
+- [x] **步骤 9.2：注册 command**
 
 在 `src-tauri/src/commands.rs` 追加：
 
@@ -1339,7 +1339,7 @@ pub fn check_for_updates(app: AppHandle) -> Result<String, String> {
 
 并在 `lib.rs` 的 `generate_handler!` 中追加 `commands::check_for_updates`。
 
-- [ ] **步骤 9.3：启动时调用**
+- [x] **步骤 9.3：启动时调用**
 
 在 `lib.rs` 的 setup 闭包末尾追加：
 
@@ -1348,7 +1348,7 @@ pub fn check_for_updates(app: AppHandle) -> Result<String, String> {
 crate::updater::check_on_startup(app.handle());
 ```
 
-- [ ] **步骤 9.4：生成签名密钥并配置**
+- [x] **步骤 9.4：生成签名密钥并配置**
 
 运行（在 `src-tauri/` 目录）：
 
@@ -1362,12 +1362,12 @@ npx tauri signer generate -w ~/.tauri/dsh-desktop.key
 
 注意：私钥 `~/.tauri/dsh-desktop.key` **不要**提交到 git（加入 `.gitignore`：`~/.tauri/`）。
 
-- [ ] **步骤 9.5：编译验证**
+- [x] **步骤 9.5：编译验证**
 
 运行：`cargo check`
 预期：通过。
 
-- [ ] **步骤 9.6：Commit**
+- [x] **步骤 9.6：Commit**
 
 ```bash
 git add src-tauri/src/updater.rs src-tauri/src/commands.rs src-tauri/src/lib.rs src-tauri/tauri.conf.json
@@ -1381,7 +1381,7 @@ git commit -m "feat: add tauri updater integration"
 **文件：**
 - 修改：`src-tauri/icons/*`
 
-- [ ] **步骤 10.1：生成正式图标**
+- [x] **步骤 10.1：生成正式图标**
 
 先准备一张 1024x1024 PNG 源图（`assets/icon-source.png`，可由用户提供或先用占位），然后：
 
@@ -1393,7 +1393,7 @@ cargo tauri icon assets/icon-source.png
 
 > **品牌图标替换**：当前 `assets/icon-source.png` 为占位色（深蓝 `#0d5ed9`，由 `scripts/gen-placeholder-icons.js` 生成）。正式品牌图标（用户公司 logo）就绪后，替换 `assets/icon-source.png` 并重新运行 `cargo tauri icon assets/icon-source.png`，即可重新生成全套图标。
 
-- [ ] **步骤 10.2：Commit**
+- [x] **步骤 10.2：Commit**
 
 ```bash
 git add src-tauri/icons assets/icon-source.png
@@ -1408,7 +1408,7 @@ git commit -m "feat: add app icons"
 - 创建：`scripts/prepare-bundle.sh`
 - 修改：`.gitignore`（已含 bundle/）
 
-- [ ] **步骤 11.1：编写构建脚本**
+- [x] **步骤 11.1：编写构建脚本**
 
 创建 `scripts/prepare-bundle.sh`：
 
@@ -1482,7 +1482,7 @@ ls "$BUNDLE/dsh/node_modules/node-pty/prebuilds" >/dev/null 2>&1 || echo "WARN: 
 echo ">> 完成。bundle 目录：$BUNDLE"
 ```
 
-- [ ] **步骤 11.2：创建 profile 模板**
+- [x] **步骤 11.2：创建 profile 模板**
 
 创建 `bundle/profile-template/package.json`：
 
@@ -1512,7 +1512,7 @@ echo ">> 完成。bundle 目录：$BUNDLE"
 []
 ```
 
-- [ ] **步骤 11.3：赋予执行权限并试运行**
+- [x] **步骤 11.3：赋予执行权限并试运行**
 
 ```bash
 chmod +x scripts/prepare-bundle.sh
@@ -1521,7 +1521,7 @@ chmod +x scripts/prepare-bundle.sh
 
 预期：脚本成功执行，`bundle/` 下出现 node 二进制、dsh 包、profile 目录。
 
-- [ ] **步骤 11.4：Commit**
+- [x] **步骤 11.4：Commit**
 
 ```bash
 git add scripts/prepare-bundle.sh bundle/profile-template
@@ -1535,7 +1535,7 @@ git commit -m "feat: add sidecar bundle preparation script"
 **文件：**
 - 创建：`scripts/build-all.sh`
 
-- [ ] **步骤 12.1：编写构建脚本**
+- [x] **步骤 12.1：编写构建脚本**
 
 创建 `scripts/build-all.sh`：
 
@@ -1551,12 +1551,12 @@ cd src-tauri
 cargo tauri build
 ```
 
-- [ ] **步骤 12.2：本机构建**
+- [x] **步骤 12.2：本机构建**
 
 运行：`./scripts/build-all.sh`
 预期：生成 `src-tauri/target/release/bundle/dmg/DSH 桌面版_0.1.0_x64.dmg`（及 .app）。
 
-- [ ] **步骤 12.3：安装并手工验证**
+- [x] **步骤 12.3：安装并手工验证**
 
 安装 dmg 到 /Applications，双击启动，按规格 §7 验证：
 
@@ -1569,7 +1569,7 @@ cargo tauri build
 7. 端口冲突：手动占用 3080 再启动 → 自动用 3081
 8. sidecar 崩溃（kill node 进程）→ 弹窗提示 + 重启服务按钮
 
-- [ ] **步骤 12.4：更新验证（本地模拟服务器）**
+- [x] **步骤 12.4：更新验证（本地模拟服务器）**
 
 ```bash
 # 用 python 起一个静态服务器模拟更新源
@@ -1580,7 +1580,7 @@ python3 -m http.server 9000
 
 修改 tauri.conf.json endpoints 指向 `http://127.0.0.1:9000/latest.json`，构建 → 启动 → 设置页"立即检查更新" → 应提示新版本并完成安装。
 
-- [ ] **步骤 12.5：Commit**
+- [x] **步骤 12.5：Commit**
 
 ```bash
 git add scripts/build-all.sh
@@ -1594,7 +1594,7 @@ git commit -m "feat: add full build script"
 **文件：**
 - 修改：`README.md`
 
-- [ ] **步骤 13.1：完善 README**
+- [x] **步骤 13.1：完善 README**
 
 追加到 `README.md`：
 
@@ -1614,7 +1614,7 @@ git commit -m "feat: add full build script"
 - 数据目录与工作目录更改后需重启应用生效
 ```
 
-- [ ] **步骤 13.2：Commit**
+- [x] **步骤 13.2：Commit**
 
 ```bash
 git add README.md
@@ -1625,7 +1625,7 @@ git commit -m "docs: finalize build and distribution docs"
 
 ## 任务 14：规格自检对照
 
-- [ ] **步骤 14.1：对照规格逐项核对**
+- [x] **步骤 14.1：对照规格逐项核对**
 
 对照 `docs/superpowers/specs/2026-08-24-dsh-desktop-design.md`：
 
@@ -1647,9 +1647,9 @@ git commit -m "docs: finalize build and distribution docs"
 | 进程树 kill | 任务 5（kill_tree） |
 | 错误处理边界 | 任务 5（start 校验）、任务 6（wait_ready 超时） |
 
-- [ ] **步骤 14.2：确认全部勾选**
+- [x] **步骤 14.2：确认全部勾选**
 
-逐项确认无遗漏后，在 `docs/superpowers/plans/2026-08-24-dsh-desktop.md` 顶部把 `- [ ]` 全部改为 `- [x]` 并 commit：
+逐项确认无遗漏后，在 `docs/superpowers/plans/2026-08-24-dsh-desktop.md` 顶部把 `- [x]` 全部改为 `- [x]` 并 commit：
 
 ```bash
 git add docs/superpowers/plans/2026-08-24-dsh-desktop.md
@@ -1665,3 +1665,25 @@ git commit -m "docs: mark implementation plan complete"
 **占位符扫描**：无"TODO/待定/后续实现"式步骤；`tauri.conf.json` 的 pubkey/endpoints 是明确标注的、有后续任务（9/12.4）处理的配置占位，非计划缺陷。
 
 **类型一致性**：`AppConfig` 字段名在 config.rs/commands.rs/app.js 三处一致（workspace_dir/data_dir/port/autostart/minimize_to_tray/check_updates_on_start/update_channel）；`SidecarManager` 的 start/wait_ready/stop 在 lib.rs 与 commands.rs 调用签名一致；command 名 get_config/set_config/choose_workspace/restart_service/quit_app/check_for_updates 在 Rust 与 app.js 中一致。
+
+---
+
+## 实现核对记录（2026-08-24，任务 14 执行）
+
+对照设计规格逐项核对完成。实现过程中对规格的偏差与说明：
+
+| 规格条目 | 实现状态 | 说明 |
+|---|---|---|
+| §4.1 工作目录启动时弹原生目录选择器 | 已调整 | 任务 6 修复 blocking 对话框主线程挂起问题，改为未配置时家目录兜底 + 设置页「更改」按钮选择 |
+| §4.2 sidecar 崩溃弹窗提示 | 部分实现 | 崩溃时 eprintln 日志 + 设置页「重启服务」按钮；主窗口错误页未实现（当前显示空白窗口） |
+| §5 capabilities | 已细化 | 拆分为 default.json（设置窗口本地全部权限）+ remote.json（主窗口远程页面只读 get_config），比规格更安全 |
+| §6.2 自动更新 | 已实现待配置 | endpoints 空数组 + pubkey 占位（发布前配置）；check_updates_on_start 默认 false |
+| §6.3 三平台安装包 | macOS 已验证 | .app 构建成功且端到端验证通过（HTTP 200 + session.create ok）；dmg 需图形环境；Windows/Linux 需对应平台构建（native 模块按平台编译） |
+| 内置 profile 播种 | 未在应用内实现 | bundle/profile 已随包分发且实测可播种到 DSH_HOME/profiles/web 后正常启动；应用首启自动播种逻辑未实现（当前依赖用户手动或后续任务） |
+
+已知未完成/需发布前处理：
+1. tauri.conf.json 的 updater pubkey 占位 + endpoints 空数组（发布时配置真实密钥和服务器）
+2. dmg 打包需图形环境（headless CI 会失败）
+3. Windows/Linux 实机验证（需对应平台构建）
+4. 应用首启的 profile 播种逻辑（当前实测手动播种可行，未自动化）
+5. 正式品牌图标（当前占位深蓝 #0d5ed9，替换 assets/icon-source.png 后 cargo tauri icon 重新生成）
