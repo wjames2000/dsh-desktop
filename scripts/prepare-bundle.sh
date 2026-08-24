@@ -84,7 +84,16 @@ fi
 
 # 让 bundle/dsh/lib 指向 dsh 包的 lib 目录（sidecar.rs 期望的布局：dsh/lib/bin.js；
 # 注意 bin.js 在包内 lib/ 下，所以目标是 node_modules/@deepseek-ai/dsh/lib，不是包根）
-ln -sfn node_modules/@deepseek-ai/dsh/lib "$BUNDLE/dsh/lib"
+# 注意：必须用真实目录复制而非 symlink——tauri 打包 resources 时（tauri-bundler 的
+# WalkDir follow_links=false + fs_utils::copy_file 要求源 is_file）不跟随 symlink，
+# 用 symlink 会导致打包产物 .app 里 dsh/lib 缺失、sidecar 启动失败。
+# 包内 lib 仅几十 KB，复制成本可忽略。
+rm -rf "$BUNDLE/dsh/lib"
+cp -r node_modules/@deepseek-ai/dsh/lib "$BUNDLE/dsh/lib"
+# bin.js 是 ESM（import 语法）。symlink 时它归属于 dsh 包的 package.json（type: module）；
+# 复制成真实目录后最近的 package.json 是 bundle/dsh/package.json（无 type: module），
+# 会以 CJS 加载而失败。这里补一个 type: module 的 package.json 保持 ESM 语义。
+echo '{"type": "module"}' > "$BUNDLE/dsh/lib/package.json"
 
 # 3. 组装内置 profile（含 node_modules：插件市场等 out-of-tree 依赖必须随 profile 分发）
 mkdir -p "$BUNDLE/profile"
