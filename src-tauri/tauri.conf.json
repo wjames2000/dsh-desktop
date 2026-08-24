@@ -40,9 +40,9 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "resources/node": "node",
-      "resources/dsh": "dsh",
-      "resources/profile": "profile"
+      "../bundle/node": "node",
+      "../bundle/dsh": "dsh",
+      "../bundle/profile": "profile"
     }
   },
   "plugins": {
