@@ -94,6 +94,11 @@ cp -r node_modules/@deepseek-ai/dsh/lib "$BUNDLE/dsh/lib"
 # 复制成真实目录后最近的 package.json 是 bundle/dsh/package.json（无 type: module），
 # 会以 CJS 加载而失败。这里补一个 type: module 的 package.json 保持 ESM 语义。
 echo '{"type": "module"}' > "$BUNDLE/dsh/lib/package.json"
+# dsh 运行时还需要 config/（agent-presets 等 preset 根，profile-boot 用 ../config 相对解析）
+cp -r node_modules/@deepseek-ai/dsh/config "$BUNDLE/dsh/config"
+
+# 清理历史遗留的嵌套缓存（防止打进安装包）
+rm -rf "$BUNDLE/dsh/bundle" 2>/dev/null || true
 
 # 3. 组装内置 profile（含 node_modules：插件市场等 out-of-tree 依赖必须随 profile 分发）
 mkdir -p "$BUNDLE/profile"
@@ -121,5 +126,7 @@ ls "$BUNDLE/dsh/node_modules/koffi/prebuilds" >/dev/null 2>&1 \
   || find "$BUNDLE/dsh/node_modules/@koromix" -name "*.node" -print -quit 2>/dev/null | grep -q . \
   || echo "WARN: koffi native 二进制缺失"
 ls "$BUNDLE/profile/node_modules" >/dev/null 2>&1 || echo "WARN: profile node_modules 缺失（插件市场不可用）"
+echo ">> 校验 config/agent-presets"
+ls "$BUNDLE/dsh/config/agent-presets" >/dev/null 2>&1 || echo "WARN: agent-presets 缺失（新建会话将失败）"
 
 echo ">> 完成。bundle 目录：$BUNDLE"
