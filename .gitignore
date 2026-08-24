@@ -15,6 +15,7 @@ node_modules/
 bundle/node/
 bundle/dsh/
 bundle/profile/
+bundle/.npm-cache/
 
 # Tauri
 src-tauri/target/

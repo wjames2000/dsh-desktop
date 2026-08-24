@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 /**
+ * 已废弃：正式图标已由 `cargo tauri icon` 生成。
+ * 本脚本仅用于重建占位源图 assets/icon-source.png。
+ *
  * 生成 Tauri 占位图标（纯色 RGBA PNG）。
  *
  * 用 Node 内置 zlib 手写 PNG 编码，不依赖任何第三方包。
