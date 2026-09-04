@@ -103,12 +103,20 @@ pub fn profile_dir() -> PathBuf {
 pub struct SidecarManager {
     child: Option<Child>,
     log_rx: Receiver<String>,
+    /// 从 dsh stdout 的 URL 行（`dsh web: http://...`）解析出的认证 URL。
+    /// dsh >= 0.1.2 的 URL 携带进程级 token（`?token=`），WebView 需导航到它
+    /// 才能完成 cookie 交换；0.1.1 的 URL 无 token，同样可用本槽传递。
+    auth_url: std::sync::Arc<std::sync::Mutex<Option<String>>>,
 }
 
 impl SidecarManager {
     pub fn new() -> Self {
         // 日志管道占位：接收端保留给任务 8（设置页日志展示）接线，本任务仅编译占位
-        Self { child: None, log_rx: mpsc::channel().1 }
+        Self {
+            child: None,
+            log_rx: mpsc::channel().1,
+            auth_url: std::sync::Arc::new(std::sync::Mutex::new(None)),
+        }
     }
 
     /// 启动 dsh web sidecar。
@@ -143,16 +151,21 @@ impl SidecarManager {
 
         let mut child = cmd.spawn().map_err(|e| format!("启动 dsh 失败: {e}"))?;
 
-        // 占位日志管道：持续排空 stdout，防止子进程写满管道阻塞。
-        // 发送端暂未与 self.log_rx 连通，任务 8 接设置页日志展示。
+        // stdout：逐行读取。dsh 会打印 `dsh web: http://127.0.0.1:PORT/?token=...` 的 URL 行，
+        // 解析其中的认证 URL 存入 auth_url 槽（供 wait_ready / authenticated_url 使用）；
+        // 同时持续排空管道，防止子进程写满 stdout 缓冲阻塞。
+        let auth_url_slot = self.auth_url.clone();
         if let Some(mut out) = child.stdout.take() {
-            let tx = mpsc::channel().0;
             thread::spawn(move || {
-                let mut buf = [0u8; 4096];
-                loop {
-                    match out.read(&mut buf) {
-                        Ok(0) | Err(_) => break,
-                        Ok(n) => { let _ = tx.send(String::from_utf8_lossy(&buf[..n]).to_string()); }
+                use std::io::BufRead;
+                let reader = std::io::BufReader::new(&mut out);
+                for line in reader.lines().map_while(Result::ok) {
+                    if let Some(url) = extract_auth_url(&line) {
+                        if let Ok(mut slot) = auth_url_slot.lock() {
+                            if slot.is_none() {
+                                *slot = Some(url);
+                            }
+                        }
                     }
                 }
             });
@@ -176,19 +189,16 @@ impl SidecarManager {
         Ok(())
     }
 
-    /// 轮询 http://127.0.0.1:{port} 直到 200，超时 30s。
-    /// 每轮轮询同时检测子进程是否提前退出（如端口冲突导致 dsh 立即退出），
-    /// 避免白等超时，也避免连上抢占端口的其他 HTTP 服务。
-    pub fn wait_ready(&mut self, port: u16, timeout: Duration) -> Result<(), String> {
+    /// 等待 sidecar 就绪（dsh 打印出认证 URL 行），超时 30s 由调用方传入。
+    /// 就绪判据：stdout 出现 `dsh web: http://...` 行——dsh 在服务绑定并打印 URL
+    /// 后才打这行，因此它比 HTTP 探测更可靠（dsh >= 0.1.2 对无 token 请求返回 401，
+    /// 不能再用"根路径返回 200"判据）。
+    /// 每轮轮询同时检测子进程是否提前退出（如端口冲突导致 dsh 立即退出）。
+    pub fn wait_ready(&mut self, timeout: Duration) -> Result<(), String> {
         if self.child.is_none() {
             return Err("DSH 服务未启动，无法等待就绪".to_string());
         }
-        let url = format!("http://127.0.0.1:{port}");
         let deadline = Instant::now() + timeout;
-        let client = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()
-            .map_err(|e| e.to_string())?;
         while Instant::now() < deadline {
             // 检测子进程是否提前退出（如端口冲突）
             if let Some(child) = self.child.as_mut() {
@@ -198,18 +208,24 @@ impl SidecarManager {
                         .map(|c| c.to_string())
                         .unwrap_or_else(|| "unknown".to_string());
                     return Err(format!(
-                        "DSH 服务进程提前退出（exit code: {code}），可能端口 {port} 被占用。请重试或更换端口。"
+                        "DSH 服务进程提前退出（exit code: {code}），可能端口被占用或启动失败。请重启服务。"
                     ));
                 }
             }
-            if let Ok(resp) = client.get(&url).send() {
-                if resp.status().is_success() {
+            // URL 行出现 = 服务已就绪
+            if let Ok(slot) = self.auth_url.lock() {
+                if slot.is_some() {
                     return Ok(());
                 }
             }
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(200));
         }
-        Err(format!("等待 DSH 服务就绪超时（{timeout:?}）：{url}"))
+        Err(format!("等待 DSH 服务就绪超时（{timeout:?}）：未捕获到服务 URL 行"))
+    }
+
+    /// 已解析出的认证 URL（含 token，供主窗口导航）；未就绪或已停止时为 None。
+    pub fn authenticated_url(&self) -> Option<String> {
+        self.auth_url.lock().ok().and_then(|s| s.clone())
     }
 
     /// kill 整个进程树并等待退出（超时 5s 强杀）。
@@ -236,7 +252,25 @@ impl SidecarManager {
                 }
             }
         }
+        // 进程已停：清空认证 URL（旧 token 随旧进程作废）
+        if let Ok(mut slot) = self.auth_url.lock() {
+            *slot = None;
+        }
     }
+}
+
+/// 从 dsh 的 stdout 行中提取认证 URL。
+/// dsh 就绪时打印 `dsh web: <url>`，其中 <url> 可能是：
+/// - dsh >= 0.1.2：`http://127.0.0.1:PORT/?token=<base64url>`（进程级认证 token）
+/// - dsh 0.1.1：`http://127.0.0.1:PORT`（无 token）
+/// 可能附带 ` (LAN: <url>)` 后缀（首个 URL 是回环地址，取它）。
+pub fn extract_auth_url(line: &str) -> Option<String> {
+    const PREFIX: &str = "dsh web: ";
+    let trimmed = line.trim();
+    let rest = trimmed.strip_prefix(PREFIX)?;
+    // 取首个以 http:// 开头的空白分隔 token（跳过 LAN 括注）
+    let url = rest.split_whitespace().find(|t| t.starts_with("http://"))?;
+    Some(url.to_string())
 }
 
 /// 应用退出时清理 sidecar：Child drop 不会 kill 子进程，
@@ -347,5 +381,46 @@ mod tests {
     fn kill_nonexistent_pid_is_ok() {
         // 不存在的 pid：kill_tree 应返回 Ok 或不 panic
         let _ = kill_tree(999_999);
+    }
+
+    #[test]
+    fn extract_auth_url_parses_token_url() {
+        // dsh >= 0.1.2：带进程 token 的 URL
+        let line = "dsh web: http://127.0.0.1:3182/?token=f-vvGapnmbyzCiKPnekk912uCxwe2Wmnr-vD97y5D_8";
+        assert_eq!(
+            extract_auth_url(line),
+            Some("http://127.0.0.1:3182/?token=f-vvGapnmbyzCiKPnekk912uCxwe2Wmnr-vD97y5D_8".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_auth_url_parses_plain_url() {
+        // dsh 0.1.1：无 token 的 URL
+        let line = "dsh web: http://127.0.0.1:3080";
+        assert_eq!(extract_auth_url(line), Some("http://127.0.0.1:3080".to_string()));
+    }
+
+    #[test]
+    fn extract_auth_url_ignores_lan_suffix() {
+        // LAN 括注只作展示，不应混入回环 URL
+        let line = "dsh web: http://127.0.0.1:3182/?token=abc (LAN: http://192.168.1.5:3182/?token=abc)";
+        assert_eq!(
+            extract_auth_url(line),
+            Some("http://127.0.0.1:3182/?token=abc".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_auth_url_rejects_other_lines() {
+        assert_eq!(extract_auth_url("some random log line"), None);
+        assert_eq!(extract_auth_url(""), None);
+        assert_eq!(extract_auth_url("dsh web: "), None);
+        assert_eq!(extract_auth_url("https://127.0.0.1:3182/?token=x"), None); // 无前缀
+    }
+
+    #[test]
+    fn extract_auth_url_trims_leading_whitespace() {
+        let line = "   dsh web: http://127.0.0.1:3080";
+        assert_eq!(extract_auth_url(line), Some("http://127.0.0.1:3080".to_string()));
     }
 }

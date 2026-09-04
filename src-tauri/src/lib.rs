@@ -77,13 +77,23 @@ pub fn run() {
             let main_win = app.get_webview_window("main").unwrap();
             let sidecar_ready = {
                 let mut sm = state.sidecar.lock().unwrap();
-                sm.wait_ready(port, Duration::from_secs(30))
+                sm.wait_ready(Duration::from_secs(30))
             };
             match sidecar_ready {
                 Ok(()) => {
-                    let _ = main_win.navigate(
-                        format!("http://127.0.0.1:{port}").parse().unwrap(),
-                    );
+                    // 导航到认证 URL：dsh >= 0.1.2 的 URL 带进程 token（?token=），
+                    // WebView 访问后自动完成 cookie 交换再跳转干净首页；
+                    // 0.1.1 的 URL 无 token，直接加载。
+                    let url = {
+                        let sm = state.sidecar.lock().unwrap();
+                        sm.authenticated_url()
+                    };
+                    match url {
+                        Some(u) => {
+                            let _ = main_win.navigate(u.parse().unwrap());
+                        }
+                        None => eprintln!("sidecar 就绪但未捕获到服务 URL"),
+                    }
                     let _ = main_win.show();
                 }
                 Err(e) => {

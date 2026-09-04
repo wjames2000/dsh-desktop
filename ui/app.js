@@ -88,8 +88,8 @@ document.getElementById('restart-service').addEventListener('click', async () =>
   const status = document.getElementById('service-status');
   status.textContent = '正在重启服务…';
   try {
-    const port = await invoke('restart_service');
-    status.textContent = `服务已重启（端口 ${port}）`;
+    const url = await invoke('restart_service');
+    status.textContent = `服务已重启：${url}`;
   } catch (e) {
     status.textContent = '重启失败: ' + e;
   }

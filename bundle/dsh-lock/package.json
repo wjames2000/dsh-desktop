@@ -4,6 +4,6 @@
   "private": true,
   "type": "commonjs",
   "dependencies": {
-    "@deepseek-ai/dsh": "0.1.1-rc.2"
+    "@deepseek-ai/dsh": "0.1.2-rc.1"
   }
 }

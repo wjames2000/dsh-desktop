@@ -28,7 +28,7 @@ pub async fn choose_workspace(app: AppHandle) -> Result<Option<String>, String> 
 }
 
 #[tauri::command]
-pub async fn restart_service(app: AppHandle, state: State<'_, AppState>) -> Result<u16, String> {
+pub async fn restart_service(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
     let cfg = state.config.lock().unwrap().clone();
     let workspace = cfg.workspace_dir.clone().unwrap_or_default();
     let data_dir = cfg.data_dir.clone();
@@ -37,12 +37,16 @@ pub async fn restart_service(app: AppHandle, state: State<'_, AppState>) -> Resu
     let mut sm = state.sidecar.lock().unwrap();
     sm.stop();
     sm.start(&workspace, data_dir.as_deref(), port)?;
-    sm.wait_ready(port, Duration::from_secs(30))?;
-    // 成功后导航主窗口到实际端口，避免前端停留在旧端口 URL 死页
+    sm.wait_ready(Duration::from_secs(30))?;
+    // 成功后导航主窗口到新的认证 URL（含新进程 token；dsh >= 0.1.2 下旧 token 已随旧进程作废），
+    // 避免前端停留在旧 URL 死页。返回该 URL 供前端展示。
+    let url = sm
+        .authenticated_url()
+        .ok_or_else(|| "服务已重启但未捕获到认证 URL".to_string())?;
     if let Some(win) = app.get_webview_window("main") {
-        let _ = win.navigate(format!("http://127.0.0.1:{port}").parse().unwrap());
+        let _ = win.navigate(url.parse().unwrap());
     }
-    Ok(port)
+    Ok(url)
 }
 
 #[tauri::command]

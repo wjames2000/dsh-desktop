@@ -9,7 +9,7 @@ NODE_VERSION="${NODE_VERSION:-$(node --version | sed 's/^v//')}"  # 默认与构
 # dsh 包版本。默认值固化在 bundle/dsh-lock/ 的 package.json + package-lock.json 中；
 # 若通过 DSH_VERSION 覆盖为其他版本，脚本会退化为 npm install 并更新 bundle/dsh 内的 lockfile
 # （bundle/dsh-lock/ 是 tracked 的固化版本，升级时需同步更新并重新生成 lockfile）
-DSH_VERSION="${DSH_VERSION:-0.1.1-rc.2}"
+DSH_VERSION="${DSH_VERSION:-0.1.2-rc.1}"
 # npm 缓存默认放 bundle 下（~/.npm 可能是 root 所有或不可写），可用 NPM_CACHE 覆盖
 NPM_CACHE="${NPM_CACHE:-$BUNDLE/.npm-cache}"
 # 默认用 npmmirror HTTPS（用户 ~/.npmrc 里的 registry.npm.taobao.org 是废弃的 HTTP 地址，
@@ -94,8 +94,10 @@ cp -r node_modules/@deepseek-ai/dsh/lib "$BUNDLE/dsh/lib"
 # 复制成真实目录后最近的 package.json 是 bundle/dsh/package.json（无 type: module），
 # 会以 CJS 加载而失败。这里补一个 type: module 的 package.json 保持 ESM 语义。
 echo '{"type": "module"}' > "$BUNDLE/dsh/lib/package.json"
-# dsh 运行时还需要 config/（agent-presets 等 preset 根，profile-boot 用 ../config 相对解析）
-cp -r node_modules/@deepseek-ai/dsh/config "$BUNDLE/dsh/config"
+# dsh >= 0.1.2：agent-presets 从 dsh 包的 config/ 移入独立的 @deepseek-ai/dsh-agent-presets
+# 包（presets/ 目录，包内 import.meta.url 相对解析，随 node_modules 安装即可用）。
+# 旧版（0.1.1）复制 config/ 的逻辑已不再需要；这里清理历史残留目录。
+rm -rf "$BUNDLE/dsh/config" 2>/dev/null || true
 
 # 清理历史遗留的嵌套缓存（防止打进安装包）
 rm -rf "$BUNDLE/dsh/bundle" 2>/dev/null || true
@@ -126,7 +128,8 @@ ls "$BUNDLE/dsh/node_modules/koffi/prebuilds" >/dev/null 2>&1 \
   || find "$BUNDLE/dsh/node_modules/@koromix" -name "*.node" -print -quit 2>/dev/null | grep -q . \
   || echo "WARN: koffi native 二进制缺失"
 ls "$BUNDLE/profile/node_modules" >/dev/null 2>&1 || echo "WARN: profile node_modules 缺失（插件市场不可用）"
-echo ">> 校验 config/agent-presets"
-ls "$BUNDLE/dsh/config/agent-presets" >/dev/null 2>&1 || echo "WARN: agent-presets 缺失（新建会话将失败）"
+echo ">> 校验 agent presets（dsh-agent-presets 包内 shipped presets，dsh >= 0.1.2 结构）"
+ls "$BUNDLE/dsh/node_modules/@deepseek-ai/dsh-agent-presets/presets" >/dev/null 2>&1 \
+  || echo "WARN: dsh-agent-presets/presets 缺失（新建会话将失败）"
 
 echo ">> 完成。bundle 目录：$BUNDLE"
