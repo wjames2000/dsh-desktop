@@ -47,6 +47,13 @@
 - 可在设置页更改数据目录（下次启动生效）
 - 工作目录未配置时默认用家目录兜底，可在设置页更改（下次启动生效）
 
+## 内置 dsh 版本与认证
+
+- 内置 `@deepseek-ai/dsh@0.1.2-rc.1`（npm lockfile 固化于 `bundle/dsh-lock/`）
+- dsh ≥ 0.1.2 引入进程级 token 认证：启动后服务 URL 携带 `?token=`，无 token 的请求返回 401。桌面应用启动时从 dsh 日志解析认证 URL 并导航主窗口，WebView 自动完成 cookie 交换（`303 → Set-Cookie → 干净首页 200`）；重启服务后自动导航到新 token 的 URL
+- agent-presets 已随 0.1.2 移入独立包 `@deepseek-ai/dsh-agent-presets`（`prepare-bundle.sh` 无需再复制 `config/`）
+- 升级内置 dsh：修改 `bundle/dsh-lock/package.json` 的依赖版本 → 重新生成 lockfile（`npm install --package-lock-only`）→ 同步 `scripts/prepare-bundle.sh` 的 `DSH_VERSION` → 重跑 `./scripts/build-all.sh`
+
 ## 图标
 
 当前使用占位图标（深蓝 #0d5ed9）。替换正式品牌图标：把设计稿（1024x1024 PNG）放为 `assets/icon-source.png`，然后在仓库根目录运行 `cargo tauri icon assets/icon-source.png` 重新生成全套（输出默认写到 `src-tauri/icons/`）。
