@@ -37,7 +37,7 @@ pub async fn restart_service(app: AppHandle, state: State<'_, AppState>) -> Resu
     let mut sm = state.sidecar.lock().unwrap();
     sm.stop();
     sm.start(&workspace, data_dir.as_deref(), port)?;
-    sm.wait_ready(Duration::from_secs(30))?;
+    sm.wait_ready(Duration::from_secs(120))?;
     // 成功后导航主窗口到新的认证 URL（含新进程 token；dsh >= 0.1.2 下旧 token 已随旧进程作废），
     // 避免前端停留在旧 URL 死页。返回该 URL 供前端展示。
     let url = sm

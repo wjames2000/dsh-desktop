@@ -2,7 +2,7 @@
   "name": "dsh-profile-web",
   "private": true,
   "dependencies": {
-    "dsh-plugin-market": "github:chnjames/dsh-plugin-market"
+    "dsh-plugin-market": "file:./vendor/dsh-plugin-market-0.3.0.tgz"
   },
   "dsh": {
     "profile": {

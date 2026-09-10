@@ -73,11 +73,13 @@ pub fn run() {
                     .map_err(|e| e.to_string())?;
             }
 
-            // 等待就绪后显示主窗口
+            // 等待就绪后显示主窗口。
+            // 超时 120s：首次启动 dsh 需要初始化 profile（插件市场等），实测 20-30s，
+            // 冷启动或慢磁盘可能更久，超时过短会让用户看到"启动失败"而实际仍在启动。
             let main_win = app.get_webview_window("main").unwrap();
             let sidecar_ready = {
                 let mut sm = state.sidecar.lock().unwrap();
-                sm.wait_ready(Duration::from_secs(30))
+                sm.wait_ready(Duration::from_secs(120))
             };
             match sidecar_ready {
                 Ok(()) => {

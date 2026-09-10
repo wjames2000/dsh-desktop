@@ -1,8 +1,9 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "本地窗口（设置页）的默认能力",
-  "windows": ["settings"],
+  "description": "本地页面的默认能力（settings 窗口，以及 main 窗口在导航到远程 Web UI 之前的本地阶段——sidecar 启动失败时 main 会停留在本地设置页，需要能调用 restart_service 等命令自救）。仅对本地 origin 生效，main 导航到 http://127.0.0.1 后由 remote capability 接管（只读）。",
+  "windows": ["main", "settings"],
+  "local": true,
   "permissions": [
     "core:default",
     "core:window:allow-show",

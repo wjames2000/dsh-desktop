@@ -19,6 +19,7 @@ bundle/.npm-cache/
 
 # Tauri
 src-tauri/target/
+src-tauri/target*/
 
 # 构建产物
 *.dmg

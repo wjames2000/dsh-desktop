@@ -5,16 +5,33 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUNDLE="$ROOT/bundle"
-NODE_VERSION="${NODE_VERSION:-$(node --version | sed 's/^v//')}"  # 默认与构建机一致（sed 去掉 v 前缀）
+# 内置 Node 版本：固定值，保证构建可复现、跨构建机一致。
+# 必须与构建机运行本脚本的 node 版本一致——npm ci 按当前 node 的 ABI 选择 native
+# prebuilds（node-pty 等），内置 node 与被依赖模块的 ABI 不匹配会导致 sidecar 启动失败。
+# 下面会做 fail-fast 校验；如需换版本，用 NODE_VERSION 显式覆盖并确保构建机 node 同版本。
+NODE_VERSION="${NODE_VERSION:-24.15.0}"
 # dsh 包版本。默认值固化在 bundle/dsh-lock/ 的 package.json + package-lock.json 中；
 # 若通过 DSH_VERSION 覆盖为其他版本，脚本会退化为 npm install 并更新 bundle/dsh 内的 lockfile
 # （bundle/dsh-lock/ 是 tracked 的固化版本，升级时需同步更新并重新生成 lockfile）
-DSH_VERSION="${DSH_VERSION:-0.1.2-rc.1}"
+DSH_VERSION="${DSH_VERSION:-0.1.5-rc.1}"
 # npm 缓存默认放 bundle 下（~/.npm 可能是 root 所有或不可写），可用 NPM_CACHE 覆盖
 NPM_CACHE="${NPM_CACHE:-$BUNDLE/.npm-cache}"
 # 默认用 npmmirror HTTPS（用户 ~/.npmrc 里的 registry.npm.taobao.org 是废弃的 HTTP 地址，
 # 重定向会挂起），可用 REGISTRY 覆盖为官方源等
 REGISTRY="${REGISTRY:-https://registry.npmmirror.com}"
+
+# 构建机 node 版本校验：必须与内置 node 一致，否则 native 模块 ABI 不匹配。
+HOST_NODE="$(node --version 2>/dev/null | sed 's/^v//' || true)"
+if [ -z "$HOST_NODE" ]; then
+  echo "错误：构建机 PATH 中找不到 node。请安装 Node v${NODE_VERSION} 并确保它在 PATH 中。" >&2
+  exit 1
+fi
+if [ "$HOST_NODE" != "$NODE_VERSION" ]; then
+  echo "错误：构建机 node 版本（v${HOST_NODE}）与内置 node 版本（v${NODE_VERSION}）不一致。" >&2
+  echo "      npm ci 会按当前 node 的 ABI 安装 native 模块，与内置 node 不匹配会导致 sidecar 启动失败。" >&2
+  echo "      解决：切换到 v${NODE_VERSION}（如 nvm use ${NODE_VERSION}），或用 NODE_VERSION=v${HOST_NODE} 覆盖内置版本。" >&2
+  exit 1
+fi
 
 # 平台检测（未知平台直接报错退出，避免生成错误的下载 URL）
 case "$(uname -s)" in
