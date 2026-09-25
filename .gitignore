@@ -28,3 +28,6 @@ src-tauri/target*/
 *.deb
 *.AppImage
 .dsh-toolchain/
+
+# 外部工具产物
+src-tauri/.omo/

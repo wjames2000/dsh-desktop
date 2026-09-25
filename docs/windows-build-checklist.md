@@ -87,7 +87,7 @@ export NODE_VERSION=24.15.0
 # 第一步：组装 sidecar 资源（下载 node.exe、npm ci 装 dsh、装 profile 依赖）
 ./scripts/prepare-bundle.sh
 # 预期尾部输出：
-#   >> 平台: win-x64, Node 24.15.0, dsh 0.1.2-rc.1
+#   >> 平台: win-x64, Node 24.15.0, dsh 0.1.5-rc.1
 #   >> 校验 node 版本        → v24.15.0
 #   >> 校验 dsh 可启动        → 无报错
 #   >> 校验 native prebuilds  → 无 WARN
