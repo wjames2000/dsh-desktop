@@ -31,3 +31,4 @@ src-tauri/target*/
 
 # 外部工具产物
 src-tauri/.omo/
+bundle/npm/

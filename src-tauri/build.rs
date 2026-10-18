@@ -12,6 +12,7 @@ fn main() {
                 "restart_service",
                 "quit_app",
                 "check_for_updates",
+                "get_runtime_info",
             ]),
         ),
     )

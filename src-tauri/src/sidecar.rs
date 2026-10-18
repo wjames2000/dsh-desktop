@@ -96,6 +96,12 @@ pub fn dsh_dir() -> PathBuf {
     resource_dir().join("dsh")
 }
 
+/// 内置 npm 的 CLI 入口（构建时由 prepare-bundle.sh 打包到 resources/npm/）。
+/// 自动更新用它安装新版 dsh；缺失时自动更新降级为内置版本。
+pub fn npm_cli() -> PathBuf {
+    resource_dir().join("npm").join("bin").join("npm-cli.js")
+}
+
 pub fn profile_dir() -> PathBuf {
     resource_dir().join("profile")
 }
@@ -120,13 +126,37 @@ impl SidecarManager {
     }
 
     /// 启动 dsh web sidecar。
-    /// data_dir 为 None 时不注入 DSH_HOME（用默认 ~/.dsh）。
-    pub fn start(&mut self, workspace: &str, data_dir: Option<&str>, port: u16) -> Result<(), String> {
+    /// `dsh_root` 为本次使用的 dsh 运行时目录（含 lib/bin.js 与 node_modules）；
+    /// 传 None 时用内置目录。data_dir 为 None 时不注入 DSH_HOME（用默认 ~/.dsh）。
+    pub fn start(
+        &mut self,
+        workspace: &str,
+        data_dir: Option<&str>,
+        port: u16,
+        dsh_root: Option<&Path>,
+    ) -> Result<(), String> {
         if self.child.is_some() {
             return Err("DSH 服务已在运行中，请先停止再启动".to_string());
         }
         let node = node_binary();
-        let dsh = dsh_dir().join("lib").join("bin.js");
+        let dsh_root = dsh_root.map(|p| p.to_path_buf()).unwrap_or_else(dsh_dir);
+        // 两种布局：
+        // - 内置/打包布局：<root>/lib/bin.js（lib 由 prepare-bundle 复制到顶层）
+        // - 自动更新布局：<root>/node_modules/@deepseek-ai/dsh/lib/bin.js（标准 npm 安装，
+        //   依赖解析依赖包内的嵌套 node_modules，不能复制到顶层）
+        let dsh = {
+            let flat = dsh_root.join("lib").join("bin.js");
+            if flat.is_file() {
+                flat
+            } else {
+                dsh_root
+                    .join("node_modules")
+                    .join("@deepseek-ai")
+                    .join("dsh")
+                    .join("lib")
+                    .join("bin.js")
+            }
+        };
         if !node.exists() {
             return Err(format!("node 运行时缺失: {}", node.display()));
         }

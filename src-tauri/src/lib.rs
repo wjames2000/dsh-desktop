@@ -1,17 +1,22 @@
 mod commands;
 mod config;
+mod dsh_update;
 mod port;
 mod sidecar;
 mod tray;
 mod updater;
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 pub struct AppState {
     pub config: Mutex<config::AppConfig>,
     pub sidecar: Mutex<sidecar::SidecarManager>,
+    /// 本次启动使用的 dsh 运行时目录（内置或自动更新后的目录）。
+    /// restart_service 复用它，避免重启时又回到内置版本。
+    pub dsh_root: Mutex<PathBuf>,
 }
 
 pub fn run() {
@@ -33,6 +38,7 @@ pub fn run() {
         .manage(AppState {
             config: Mutex::new(config::AppConfig::load()),
             sidecar: Mutex::new(sidecar::SidecarManager::new()),
+            dsh_root: Mutex::new(sidecar::dsh_dir()),
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
@@ -41,69 +47,38 @@ pub fn run() {
             commands::restart_service,
             commands::quit_app,
             commands::check_for_updates,
+            commands::get_runtime_info,
         ])
         .setup(|app| {
-            let state = app.state::<AppState>();
-            let cfg = state.config.lock().unwrap().clone();
-
-            // 启动 sidecar（若未配置工作目录，用家目录兜底启动）。
-            // 注意：setup 跑在主线程，不能在这里调用 dialog 的 blocking API——
-            // 主线程阻塞时事件循环不泵动，对话框永远不出现、recv 永不返回 → 应用永久挂起。
-            // 首次运行的目录选择交给设置页的 choose_workspace command（任务 8）。
+            // 工作目录：未配置时用家目录兜底（首次运行的目录选择交给设置页的
+            // choose_workspace command）。注意 setup 跑在主线程，不能调用 dialog
+            // 的 blocking API，也不做耗时的网络/安装操作——否则事件循环不泵动，
+            // 窗口无法显示进度、界面挂起。
+            let cfg = {
+                let state = app.state::<AppState>();
+                let c = state.config.lock().unwrap().clone();
+                c
+            };
             let workspace = match &cfg.workspace_dir {
                 Some(w) if !w.is_empty() => w.clone(),
-                _ => dirs::home_dir()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string(),
+                _ => dirs::home_dir().unwrap_or_default().to_string_lossy().to_string(),
             };
-            // 记住选择
             {
+                let state = app.state::<AppState>();
                 let mut cfg2 = state.config.lock().unwrap();
-                cfg2.workspace_dir = Some(workspace.clone());
+                cfg2.workspace_dir = Some(workspace);
                 let _ = cfg2.save();
             }
 
-            // 探测端口并启动 sidecar
-            let port = port::find_free_port(cfg.port);
-            let data_dir = cfg.data_dir.clone();
-            {
-                let mut sm = state.sidecar.lock().unwrap();
-                sm.start(&workspace, data_dir.as_deref(), port)
-                    .map_err(|e| e.to_string())?;
+            // 先显示主窗口（此时加载本地设置页，展示启动进度），
+            // 之后的 dsh 自动更新 + sidecar 启动 + 导航都在后台线程完成。
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.show();
             }
 
-            // 等待就绪后显示主窗口。
-            // 超时 120s：首次启动 dsh 需要初始化 profile（插件市场等），实测 20-30s，
-            // 冷启动或慢磁盘可能更久，超时过短会让用户看到"启动失败"而实际仍在启动。
-            let main_win = app.get_webview_window("main").unwrap();
-            let sidecar_ready = {
-                let mut sm = state.sidecar.lock().unwrap();
-                sm.wait_ready(Duration::from_secs(120))
-            };
-            match sidecar_ready {
-                Ok(()) => {
-                    // 导航到认证 URL：dsh >= 0.1.2 的 URL 带进程 token（?token=），
-                    // WebView 访问后自动完成 cookie 交换再跳转干净首页；
-                    // 0.1.1 的 URL 无 token，直接加载。
-                    let url = {
-                        let sm = state.sidecar.lock().unwrap();
-                        sm.authenticated_url()
-                    };
-                    match url {
-                        Some(u) => {
-                            let _ = main_win.navigate(u.parse().unwrap());
-                        }
-                        None => eprintln!("sidecar 就绪但未捕获到服务 URL"),
-                    }
-                    let _ = main_win.show();
-                }
-                Err(e) => {
-                    // 显示错误页（任务 7 完善）
-                    eprintln!("sidecar 启动失败: {e}");
-                    let _ = main_win.show();
-                }
-            }
+            // 后台启动序列：dsh 更新 → sidecar 启动 → 就绪 → 导航主窗口
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || boot_sequence(app_handle));
 
             // 托盘：失败不阻止主应用运行（如 Linux 无 StatusNotifier 宿主时）
             if let Err(e) = tray::setup_tray(app.handle().clone()) {
@@ -116,7 +91,7 @@ pub fn run() {
                 let _ = app.autolaunch().enable();
             }
 
-            // 启动时后台检查更新
+            // 启动时后台检查桌面应用自身更新
             crate::updater::check_on_startup(app.handle());
 
             Ok(())
@@ -163,4 +138,92 @@ pub fn run() {
             sm.stop();
         }
     });
+}
+
+/// 启动序列（后台线程）：dsh 自动更新 → 启动 sidecar → 等待就绪 → 导航主窗口。
+///
+/// 进度通过 `boot-progress` 事件发给前端（本地设置页展示），出错发 `boot-error`。
+/// 任何一步失败都降级处理：dsh 更新失败用内置版本继续；sidecar 失败则提示并保留
+/// 设置页（本地 origin，有完整命令权限）供用户自救（重启服务、改端口等）。
+fn boot_sequence(app: tauri::AppHandle) {
+    let emit = {
+        let app = app.clone();
+        move |msg: &str| {
+            let _ = app.emit("boot-progress", msg.to_string());
+        }
+    };
+    let fail = {
+        let app = app.clone();
+        move |msg: &str| {
+            eprintln!("[boot] {msg}");
+            let _ = app.emit("boot-error", msg.to_string());
+        }
+    };
+
+    let state = app.state::<AppState>();
+    let cfg = state.config.lock().unwrap().clone();
+    let workspace = cfg.workspace_dir.clone().unwrap_or_default();
+    let data_dir = cfg.data_dir.clone();
+
+    // 1. dsh 自动更新（latest 优先；失败/超时一律降级内置版本，不阻塞启动）
+    let builtin = sidecar::dsh_dir();
+    let node = sidecar::node_binary();
+    let npm = sidecar::npm_cli();
+    let dsh_root = if npm.exists() {
+        dsh_update::ensure_updated(
+            &builtin,
+            &node,
+            &npm,
+            dsh_update::REGISTRY,
+            Duration::from_secs(15),
+            |m: &str| emit(m),
+        )
+    } else {
+        eprintln!("[boot] 内置 npm 缺失，跳过 dsh 自动更新（使用内置版本）");
+        builtin.clone()
+    };
+    *state.dsh_root.lock().unwrap() = dsh_root.clone();
+
+    // 2. 启动 sidecar
+    emit("正在启动 DSH 服务…");
+    let port = port::find_free_port(cfg.port);
+    {
+        let mut sm = state.sidecar.lock().unwrap();
+        if let Err(e) = sm.start(&workspace, data_dir.as_deref(), port, Some(&dsh_root)) {
+            fail(&format!("DSH 服务启动失败：{e}（可在设置页点击「重启服务」重试）"));
+            return;
+        }
+    }
+
+    // 3. 等待就绪（首次初始化 profile 实测 20-30s，慢磁盘更久 → 120s）
+    emit("正在等待 DSH 服务就绪…");
+    let ready = {
+        let mut sm = state.sidecar.lock().unwrap();
+        sm.wait_ready(Duration::from_secs(120))
+    };
+    match ready {
+        Ok(()) => {
+            // 导航到认证 URL：dsh >= 0.1.2 的 URL 带进程 token（?token=），
+            // WebView 访问后自动完成 cookie 交换再跳转干净首页。
+            let url = {
+                let sm = state.sidecar.lock().unwrap();
+                sm.authenticated_url()
+            };
+            match url {
+                Some(u) => {
+                    if let Some(win) = app.get_webview_window("main") {
+                        match u.parse() {
+                            Ok(url) => {
+                                let _ = win.navigate(url);
+                            }
+                            Err(e) => fail(&format!("认证 URL 解析失败：{e}")),
+                        }
+                        let _ = win.show();
+                    }
+                }
+                None => fail("服务已就绪但未捕获到认证 URL（请重启服务）"),
+            }
+        }
+        Err(e) => fail(&format!("{e}（可在设置页点击「重启服务」重试）")),
+    }
 }

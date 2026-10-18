@@ -42,7 +42,8 @@
     "resources": {
       "../bundle/node": "node",
       "../bundle/dsh": "dsh",
-      "../bundle/profile": "profile"
+      "../bundle/profile": "profile",
+      "../bundle/npm": "npm"
     }
   },
   "plugins": {

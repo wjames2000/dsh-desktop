@@ -32,11 +32,13 @@ pub async fn restart_service(app: AppHandle, state: State<'_, AppState>) -> Resu
     let cfg = state.config.lock().unwrap().clone();
     let workspace = cfg.workspace_dir.clone().unwrap_or_default();
     let data_dir = cfg.data_dir.clone();
+    // 复用本次启动选定的 dsh 运行时（可能是自动更新后的目录）
+    let dsh_root = state.dsh_root.lock().unwrap().clone();
     // find_free_port 可能返回与上次不同的端口（原端口被占用 → 端口漂移）
     let port = crate::port::find_free_port(cfg.port);
     let mut sm = state.sidecar.lock().unwrap();
     sm.stop();
-    sm.start(&workspace, data_dir.as_deref(), port)?;
+    sm.start(&workspace, data_dir.as_deref(), port, Some(&dsh_root))?;
     sm.wait_ready(Duration::from_secs(120))?;
     // 成功后导航主窗口到新的认证 URL（含新进程 token；dsh >= 0.1.2 下旧 token 已随旧进程作废），
     // 避免前端停留在旧 URL 死页。返回该 URL 供前端展示。
@@ -47,6 +49,22 @@ pub async fn restart_service(app: AppHandle, state: State<'_, AppState>) -> Resu
         let _ = win.navigate(url.parse().unwrap());
     }
     Ok(url)
+}
+
+/// 当前运行时信息（设置页展示用）：内置版本、实际使用版本、是否来自自动更新。
+#[tauri::command]
+pub fn get_runtime_info(state: State<AppState>) -> serde_json::Value {
+    let used = state.dsh_root.lock().unwrap().clone();
+    let builtin = crate::sidecar::dsh_dir();
+    let builtin_version = crate::dsh_update::installed_version(&builtin);
+    let used_version = crate::dsh_update::installed_version(&used);
+    let is_updated = used != builtin;
+    serde_json::json!({
+        "builtin_version": builtin_version,
+        "runtime_version": used_version,
+        "runtime_dir": used.to_string_lossy(),
+        "from_update": is_updated,
+    })
 }
 
 #[tauri::command]

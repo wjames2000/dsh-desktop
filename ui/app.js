@@ -1,8 +1,36 @@
 // Tauri v2 IPC：@tauri-apps/api 的 invoke
 // 注意：本应用没有 npm 依赖（纯 HTML/JS），用 window.__TAURI__.core.invoke
 const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
 
 let currentConfig = null;
+
+// 启动进度：后端 boot-sequence 通过 boot-progress / boot-error 事件推送
+function setBootStatus(text, isError) {
+  const el = document.getElementById('boot-status');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle('error', !!isError);
+}
+listen('boot-progress', (event) => setBootStatus(String(event.payload)));
+listen('boot-error', (event) => setBootStatus(String(event.payload), true));
+
+// 运行时信息：显示当前使用的 dsh 版本（内置 or 自动更新）
+async function refreshRuntimeInfo() {
+  const el = document.getElementById('runtime-version');
+  if (!el) return;
+  try {
+    const info = await invoke('get_runtime_info');
+    const builtin = info.builtin_version || '未知';
+    const runtime = info.runtime_version || '未知';
+    el.textContent = info.from_update
+      ? `${runtime}（自动更新）`
+      : `${runtime}（内置）`;
+    el.title = `内置版本: ${builtin}\n运行时目录: ${info.runtime_dir || '-'}`;
+  } catch (e) {
+    el.textContent = '读取失败: ' + e;
+  }
+}
 
 async function refresh() {
   try {
@@ -104,3 +132,4 @@ document.getElementById('quit-app').addEventListener('click', async () => {
 });
 
 refresh();
+refreshRuntimeInfo();

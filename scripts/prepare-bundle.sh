@@ -84,6 +84,32 @@ else
   BUNDLE_NODE="$BUNDLE/node/node"
 fi
 
+# 1b. 打包 npm：运行时「dsh 自动更新」需要它（用内置 node 跑 npm install 安装新版 dsh）。
+#     npm 是独立 npm 包，从 registry 取 tarball 解压即可（约 15MB）。
+NPM_VERSION="${NPM_VERSION:-11.12.1}"
+NPM_DIR="$BUNDLE/npm"
+if [ ! -f "$NPM_DIR/bin/npm-cli.js" ]; then
+  echo ">> 下载 npm v${NPM_VERSION}（运行时自动更新 dsh 用）"
+  rm -rf "$NPM_DIR"
+  mkdir -p "$NPM_DIR"
+  NPM_TGZ="/tmp/npm-${NPM_VERSION}.tgz"
+  if [ ! -f "$NPM_TGZ" ]; then
+    curl -fsSL "https://registry.npmmirror.com/npm/-/npm-${NPM_VERSION}.tgz" -o "$NPM_TGZ"
+  fi
+  # npm tarball 顶层是 package/，解包后去掉该层
+  tar -xzf "$NPM_TGZ" -C /tmp
+  cp -R "/tmp/package/." "$NPM_DIR/"
+  rm -rf "/tmp/package"
+fi
+NPM_CLI="$NPM_DIR/bin/npm-cli.js"
+if [ -f "$NPM_CLI" ]; then
+  "$BUNDLE_NODE" "$NPM_CLI" --version >/dev/null 2>&1 \
+    && echo ">> npm 就绪: $("$BUNDLE_NODE" "$NPM_CLI" --version)" \
+    || echo "WARN: 打包的 npm 无法运行（自动更新将降级为使用内置 dsh）"
+else
+  echo "WARN: npm 打包缺失（自动更新将降级为使用内置 dsh）"
+fi
+
 # 2. 安装 dsh 包及依赖（npm ci 用固化的 lockfile，快速且可复现；版本被覆盖时才退化为 npm install）
 mkdir -p "$BUNDLE/dsh"
 cp "$ROOT/bundle/dsh-lock/package.json" "$ROOT/bundle/dsh-lock/package-lock.json" "$BUNDLE/dsh/"

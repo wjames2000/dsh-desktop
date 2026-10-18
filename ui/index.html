@@ -9,6 +9,18 @@
 <body>
   <h1>DSH 桌面版设置</h1>
 
+  <section id="boot-section">
+    <h2>启动状态</h2>
+    <p id="boot-status" class="boot-status">正在准备…</p>
+    <p class="hint">启动时会自动检查并更新内置 dsh（latest 通道，失败则使用内置版本）</p>
+  </section>
+
+  <section>
+    <h2>dsh 运行时</h2>
+    <p id="runtime-version" class="value">-</p>
+    <p class="hint">自动更新后的版本优先使用；显示"内置"表示当前使用安装包内版本</p>
+  </section>
+
   <section>
     <h2>工作目录</h2>
     <p id="workspace-value" class="value">-</p>
