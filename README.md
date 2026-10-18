@@ -63,6 +63,26 @@
 - `settings` 窗口（托盘打开）→ 与 `main` 的本地阶段共用 `default` capability
 - 改动 `capabilities/*.json` 后需重新构建（capabilities 编译进二进制）
 
+## dsh 自动更新
+
+应用启动时会在后台线程自动更新内置 dsh（不阻塞窗口显示，设置页"启动状态"实时展示进度）：
+
+- **通道**：npm registry 的 `latest` 优先，取不到时回退 `next`
+- **判据**：semver 比较，远端版本高于当前才安装（`should_update`）
+- **安装**：用内置 node + npm 安装到用户数据目录（`<data_dir>/dsh-desktop/dsh-runtime/dsh-<version>/`，标准 npm 布局），并优先使用该版本；只保留当前使用的版本目录
+- **降级**：网络失败、npm 安装失败、布局校验失败、内置 npm 缺失——一律回退内置版本继续启动，只写日志
+- **npm 缓存**：写到更新根目录下（`.npm-cache`），不依赖 `~/.npm` 写权限
+- 设置页"dsh 运行时"显示当前实际使用的版本（内置 / 自动更新）
+
+### 构建机注意
+
+若 macOS 上 `clang` 报 `libxcodebuildLoader.dylib` 符号错误（Xcode 与系统版本不匹配），可临时用 Command Line Tools 构建：
+
+```bash
+export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+```
+
 ## 图标
 
 当前使用占位图标（深蓝 #0d5ed9）。替换正式品牌图标：把设计稿（1024x1024 PNG）放为 `assets/icon-source.png`，然后在仓库根目录运行 `cargo tauri icon assets/icon-source.png` 重新生成全套（输出默认写到 `src-tauri/icons/`）。
