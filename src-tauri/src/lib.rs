@@ -1,3 +1,4 @@
+mod auth;
 mod commands;
 mod config;
 mod dsh_update;
@@ -203,16 +204,33 @@ fn boot_sequence(app: tauri::AppHandle) {
     };
     match ready {
         Ok(()) => {
-            // 导航到认证 URL：dsh >= 0.1.2 的 URL 带进程 token（?token=），
-            // WebView 访问后自动完成 cookie 交换再跳转干净首页。
+            // 认证引导：dsh >= 0.1.2 的 URL 带进程 token。先在 Rust 侧完成
+            // token→cookie 交换并注入 WebView，再导航干净 URL——避免 WebView 自己
+            // 保存 cookie 失败导致页面停在 "dsh web authentication required"。
+            // 注入失败时回退为导航带 token 的 URL（WebView 自行交换）。
             let url = {
                 let sm = state.sidecar.lock().unwrap();
                 sm.authenticated_url()
             };
             match url {
-                Some(u) => {
+                Some(auth_url) => {
                     if let Some(win) = app.get_webview_window("main") {
-                        match u.parse() {
+                        let injected = match auth::bootstrap_auth_cookie(&app, &auth_url) {
+                            Ok(n) => {
+                                eprintln!("[boot] 已注入 {n} 个认证 cookie");
+                                true
+                            }
+                            Err(e) => {
+                                eprintln!("[boot] 认证 cookie 注入失败，回退导航带 token 的 URL: {e}");
+                                false
+                            }
+                        };
+                        let target = if injected {
+                            auth::clean_url(&auth_url).unwrap_or_else(|| auth_url.clone())
+                        } else {
+                            auth_url.clone()
+                        };
+                        match target.parse() {
                             Ok(url) => {
                                 let _ = win.navigate(url);
                             }
