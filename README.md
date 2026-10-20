@@ -49,9 +49,9 @@
 
 ## 内置 dsh 版本与认证
 
-- 内置 `@deepseek-ai/dsh@0.1.5-rc.1`（npm lockfile 固化于 `bundle/dsh-lock/`）
+- 内置 `@deepseek-ai/dsh@0.2.1-rc.2`（npm lockfile 固化于 `bundle/dsh-lock/`）
 - dsh ≥ 0.1.2 引入进程级 token 认证：启动后服务 URL 携带 `?token=`，无 token 的请求返回 401。桌面应用启动时从 dsh 日志解析认证 URL 并导航主窗口，WebView 自动完成 cookie 交换（`303 → Set-Cookie → 干净首页 200`）；重启服务后自动导航到新 token 的 URL
-- agent-presets 已随 0.1.2 移入独立包 `@deepseek-ai/dsh-agent-presets`（`prepare-bundle.sh` 无需再复制 `config/`）
+- agent-presets 位置随版本变化：0.1.2–0.1.5 在独立包 `@deepseek-ai/dsh-agent-presets/presets`；**0.2 起移到 `@deepseek-ai/dsh-web-app/presets`**（.patch.yml 形式），`prepare-bundle.sh` 的校验两者都兼容
 - 插件市场（dsh-plugin-market）以 **vendored tgz** 分发（`bundle/profile-template/vendor/`），profile 依赖声明为 `file:./vendor/*.tgz`——构建不再依赖 GitHub 可达性
 - 升级内置 dsh：修改 `bundle/dsh-lock/package.json` 的依赖版本 → 重新生成 lockfile（`npm install --package-lock-only`）→ 同步 `scripts/prepare-bundle.sh` 的 `DSH_VERSION` → 重跑 `./scripts/build-all.sh`
 - **构建一致性约束**：构建机 node 版本必须等于内置 node 版本（`prepare-bundle.sh` 会 fail-fast 校验）。npm ci 按当前 node 的 ABI 选择 native prebuilds（node-pty 等），不一致会导致 sidecar 启动失败

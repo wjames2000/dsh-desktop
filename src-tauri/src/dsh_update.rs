@@ -248,25 +248,31 @@ pub fn ensure_updated(
     let _ = fs::create_dir_all(&root);
 
     let builtin_version = installed_version(builtin);
-    progress("正在检查 dsh 更新…");
+    let builtin_label = builtin_version.clone().unwrap_or_else(|| "未知".to_string());
+    progress(&format!("正在检查 dsh 更新（内置 {builtin_label}）…"));
     let target = match fetch_target_version(Channel::Latest, timeout) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("[dsh-update] 查询更新失败，使用内置版本: {e}");
+            progress(&format!("检查更新失败，使用内置 dsh {builtin_label}"));
             return builtin.to_path_buf();
         }
     };
     if !should_update(builtin_version.as_deref(), &target) {
+        // 已是最新：清理旧版本目录，仍使用更新目录里更高的可用版本（若有）
         let _ = cleanup(&root, builtin_version.as_deref());
-        return resolve_dsh_dir(&root, builtin);
+        let resolved = resolve_dsh_dir(&root, builtin);
+        let label = installed_version(&resolved).unwrap_or_else(|| target.clone());
+        progress(&format!("dsh 已是最新（{label}）"));
+        return resolved;
     }
     // 已安装过该版本：直接用
     if is_usable(&version_dir(&root, &target)) {
-        progress(&format!("dsh {target} 已就绪"));
+        progress(&format!("dsh {target} 已就绪（内置 {builtin_label}）"));
         return version_dir(&root, &target);
     }
 
-    progress(&format!("正在更新 dsh 到 {target}…"));
+    progress(&format!("发现新版本 dsh {target}（内置 {builtin_label}），正在安装…"));
     match install(&target, &root, node, npm_cli, registry) {
         Ok(dir) => {
             let _ = cleanup(&root, Some(&target));
@@ -275,6 +281,7 @@ pub fn ensure_updated(
         }
         Err(e) => {
             eprintln!("[dsh-update] 更新到 {target} 失败，使用内置版本: {e}");
+            progress(&format!("更新失败，回退内置 dsh {builtin_label}"));
             resolve_dsh_dir(&root, builtin)
         }
     }

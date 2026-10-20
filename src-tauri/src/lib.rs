@@ -204,10 +204,9 @@ fn boot_sequence(app: tauri::AppHandle) {
     };
     match ready {
         Ok(()) => {
-            // 认证引导：dsh >= 0.1.2 的 URL 带进程 token。先在 Rust 侧完成
-            // token→cookie 交换并注入 WebView，再导航干净 URL——避免 WebView 自己
-            // 保存 cookie 失败导致页面停在 "dsh web authentication required"。
-            // 注入失败时回退为导航带 token 的 URL（WebView 自行交换）。
+            // 认证引导：dsh >= 0.1.2 的 URL 带进程 token。由 auth::bootstrap 在
+            // Rust 侧完成 token→cookie 交换，导航后用 JS 注入 cookie 并 reload——
+            // 避免 WebView 自身 cookie 交换失败（页面停在 authentication required）。
             let url = {
                 let sm = state.sidecar.lock().unwrap();
                 sm.authenticated_url()
@@ -215,26 +214,8 @@ fn boot_sequence(app: tauri::AppHandle) {
             match url {
                 Some(auth_url) => {
                     if let Some(win) = app.get_webview_window("main") {
-                        let injected = match auth::bootstrap_auth_cookie(&app, &auth_url) {
-                            Ok(n) => {
-                                eprintln!("[boot] 已注入 {n} 个认证 cookie");
-                                true
-                            }
-                            Err(e) => {
-                                eprintln!("[boot] 认证 cookie 注入失败，回退导航带 token 的 URL: {e}");
-                                false
-                            }
-                        };
-                        let target = if injected {
-                            auth::clean_url(&auth_url).unwrap_or_else(|| auth_url.clone())
-                        } else {
-                            auth_url.clone()
-                        };
-                        match target.parse() {
-                            Ok(url) => {
-                                let _ = win.navigate(url);
-                            }
-                            Err(e) => fail(&format!("认证 URL 解析失败：{e}")),
+                        if let Err(e) = auth::bootstrap(&app, &auth_url) {
+                            fail(&format!("认证引导失败：{e}"));
                         }
                         let _ = win.show();
                     }

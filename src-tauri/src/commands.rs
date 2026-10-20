@@ -40,29 +40,12 @@ pub async fn restart_service(app: AppHandle, state: State<'_, AppState>) -> Resu
     sm.stop();
     sm.start(&workspace, data_dir.as_deref(), port, Some(&dsh_root))?;
     sm.wait_ready(Duration::from_secs(120))?;
-    // 成功后重新引导认证：新进程 token 变了，先做 token→cookie 交换并注入 WebView，
-    // 再导航干净 URL（失败回退带 token 的 URL）。返回认证 URL 供前端展示。
+    // 成功后重新引导认证：新进程 token 变了，由 auth::bootstrap 重新取 cookie 注入并 reload。
     let auth_url = sm
         .authenticated_url()
         .ok_or_else(|| "服务已重启但未捕获到认证 URL".to_string())?;
-    let injected = match crate::auth::bootstrap_auth_cookie(&app, &auth_url) {
-        Ok(n) => {
-            eprintln!("[restart] 已注入 {n} 个认证 cookie");
-            true
-        }
-        Err(e) => {
-            eprintln!("[restart] 认证 cookie 注入失败，回退导航带 token 的 URL: {e}");
-            false
-        }
-    };
-    let target = if injected {
-        crate::auth::clean_url(&auth_url).unwrap_or_else(|| auth_url.clone())
-    } else {
-        auth_url.clone()
-    };
-    if let Some(win) = app.get_webview_window("main") {
-        let _ = win.navigate(target.parse().unwrap());
-    }
+    drop(sm);
+    crate::auth::bootstrap(&app, &auth_url)?;
     Ok(auth_url)
 }
 
