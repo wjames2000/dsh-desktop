@@ -179,6 +179,16 @@ impl SidecarManager {
             cmd.env("DSH_HOME", d);
         }
 
+        // 注入包管理器环境：桌面应用从 Finder/LaunchAgent 启动时 PATH 通常只有
+        // /usr/bin:/bin:/usr/sbin:/sbin，也不继承 shell 的 PNPM_HOME。插件市场
+        // （dshmarket）因此可能命中旧版 pnpm（/usr/local/bin），其 store 布局与
+        // profile 的记录不一致，更新插件时报 ERR_PNPM_UNEXPECTED_STORE。
+        let (pnpm_home, path) = package_manager_env();
+        if let Some(home) = &pnpm_home {
+            cmd.env("PNPM_HOME", home);
+        }
+        cmd.env("PATH", path);
+
         let mut child = cmd.spawn().map_err(|e| format!("启动 dsh 失败: {e}"))?;
 
         // stdout：逐行读取。dsh 会打印 `dsh web: http://127.0.0.1:PORT/?token=...` 的 URL 行，
@@ -452,5 +462,87 @@ mod tests {
     fn extract_auth_url_trims_leading_whitespace() {
         let line = "   dsh web: http://127.0.0.1:3080";
         assert_eq!(extract_auth_url(line), Some("http://127.0.0.1:3080".to_string()));
+    }
+}
+
+/// 自动发现 pnpm 位置并构造 sidecar 的 PATH / PNPM_HOME。
+///
+/// 搜索顺序刻意与插件市场（dshmarket）的 `toolSearchDirs` 对齐：PNPM_HOME 优先，
+/// 其次是 nvm 各版本的 bin、pnpm 独立安装目录、Homebrew 与 /usr/local。
+/// 选中第一个真正可执行 `pnpm` 的目录，避免命中版本不符的旧 pnpm
+/// （store 布局 v10/v11 不同，会触发 ERR_PNPM_UNEXPECTED_STORE）。
+///
+/// 返回 `(PNPM_HOME, PATH)`；找不到 pnpm 时 PNPM_HOME 为 None，PATH 仍会补上
+/// 应用内置 node 目录，至少保证 node/npm 可用。
+fn package_manager_env() -> (Option<std::path::PathBuf>, std::ffi::OsString) {
+    use std::path::PathBuf;
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+
+    // 1) 已显式设置的 PNPM_HOME 最可信
+    if let Some(v) = std::env::var_os("PNPM_HOME") {
+        candidates.push(PathBuf::from(v));
+    }
+    if let Some(home) = &home {
+        // 2) nvm：各 node 版本的 bin（pnpm 常随 node 一起装）
+        let nvm = home.join(".nvm").join("versions").join("node");
+        if let Ok(entries) = std::fs::read_dir(&nvm) {
+            let mut dirs: Vec<PathBuf> = entries
+                .flatten()
+                .map(|e| e.path().join("bin"))
+                .filter(|p| p.join("pnpm").exists())
+                .collect();
+            // 版本目录名排序，优先较新版本
+            dirs.sort();
+            dirs.reverse();
+            candidates.extend(dirs);
+        }
+        // 3) pnpm 独立安装（installer 默认位置）
+        candidates.push(home.join("Library").join("pnpm"));
+        candidates.push(home.join(".local").join("bin"));
+        candidates.push(home.join(".local").join("share").join("pnpm"));
+    }
+    // 4) 系统级位置
+    candidates.push(PathBuf::from("/opt/homebrew/bin"));
+    candidates.push(PathBuf::from("/usr/local/bin"));
+
+    let pnpm_home = candidates
+        .into_iter()
+        .find(|dir| dir.join("pnpm").exists());
+
+    // PATH：应用内置 node 目录 + pnpm 目录 + 继承的 PATH（保持原有查找能力）
+    let mut parts: Vec<PathBuf> = Vec::new();
+    if let Some(dir) = node_binary().parent() {
+        parts.push(dir.to_path_buf());
+    }
+    if let Some(dir) = &pnpm_home {
+        parts.push(dir.clone());
+    }
+    for p in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
+        if !parts.contains(&p) {
+            parts.push(p);
+        }
+    }
+    let path = std::env::join_paths(parts).unwrap_or_else(|_| std::env::var_os("PATH").unwrap_or_default());
+    (pnpm_home, path)
+}
+
+#[cfg(test)]
+mod env_tests {
+    use super::*;
+
+    #[test]
+    fn path_starts_with_node_and_pnpm_dirs_when_present() {
+        let (pnpm_home, path) = package_manager_env();
+        let parts: Vec<_> = std::env::split_paths(&path).collect();
+        assert!(!parts.is_empty(), "PATH 不应为空");
+        // 应用/开发时的 node 目录必须在最前，保证 sidecar 用同一运行时
+        if let Some(node_dir) = node_binary().parent() {
+            assert_eq!(parts[0], node_dir);
+        }
+        if let Some(home) = pnpm_home {
+            assert_eq!(parts[1], home, "pnpm 目录应紧随 node 目录");
+        }
     }
 }

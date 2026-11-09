@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- macOS 26 本地网络隐私：缺少此声明时应用无法弹窗请求授权，
+	     导致同网段（局域网）访问被系统静默阻断（跨网段/公网不受影响）。
+	     注意：该文件会被 tauri-bundler 合并进 .app 的 Info.plist。 -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>DSH 桌面版需要访问本地网络，以便在 DSH 中使用内网服务、本地 API 与局域网设备。</string>
+</dict>
+</plist>
